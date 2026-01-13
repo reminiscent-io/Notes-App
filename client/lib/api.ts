@@ -1,7 +1,6 @@
 import { getApiUrl, apiRequest } from "@/lib/query-client";
 import { Note } from "@/hooks/useNotes";
 import { CustomSection } from "@/hooks/useCustomSections";
-import { File } from "expo-file-system/next";
 
 interface TranscribeResult {
   rawText: string;
@@ -28,8 +27,15 @@ export async function transcribeAndProcess(
 ): Promise<TranscribeResult> {
   const formData = new FormData();
   
-  const file = new File(audioUri);
-  formData.append("audio", file);
+  const filename = audioUri.includes(".") 
+    ? audioUri.split("/").pop() || "recording.m4a"
+    : "recording.m4a";
+  
+  formData.append("audio", {
+    uri: audioUri,
+    type: "audio/m4a",
+    name: filename.endsWith(".m4a") ? filename : `${filename}.m4a`,
+  } as any);
   formData.append("customSections", JSON.stringify(customSections));
 
   const url = new URL("/api/transcribe", getApiUrl());
@@ -54,8 +60,15 @@ export async function queryNotes(
 ): Promise<QueryResult> {
   const formData = new FormData();
   
-  const file = new File(audioUri);
-  formData.append("audio", file);
+  const filename = audioUri.includes(".") 
+    ? audioUri.split("/").pop() || "recording.m4a"
+    : "recording.m4a";
+  
+  formData.append("audio", {
+    uri: audioUri,
+    type: "audio/m4a",
+    name: filename.endsWith(".m4a") ? filename : `${filename}.m4a`,
+  } as any);
   formData.append("notes", JSON.stringify(notes));
   formData.append("customSections", JSON.stringify(customSections));
 
