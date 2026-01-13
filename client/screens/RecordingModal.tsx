@@ -22,7 +22,7 @@ import Animated, {
   withSpring,
   cancelAnimation,
 } from "react-native-reanimated";
-import { useAudioRecorder, AudioModule, RecordingPresets, setAudioModeAsync } from "expo-audio";
+import { useAudioRecorder, AudioModule, setAudioModeAsync, RecordingPresets } from "expo-audio";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";

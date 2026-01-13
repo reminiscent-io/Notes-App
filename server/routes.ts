@@ -31,7 +31,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const audioPath = req.file.path;
-      const audioStream = fs.createReadStream(audioPath);
+      const originalName = req.file.originalname || "audio.m4a";
+      const ext = path.extname(originalName) || ".m4a";
+      const newPath = audioPath + ext;
+      fs.renameSync(audioPath, newPath);
+      
+      const audioStream = fs.createReadStream(newPath);
 
       const transcription = await client.audio.transcriptions.create({
         file: audioStream,
@@ -98,7 +103,7 @@ Tags:
 
       const parsed = JSON.parse(understanding.choices[0].message.content || "{}");
 
-      fs.unlinkSync(audioPath);
+      try { fs.unlinkSync(newPath); } catch {}
 
       res.json({
         rawText,
@@ -115,6 +120,7 @@ Tags:
   });
 
   app.post("/api/query", upload.single("audio"), async (req, res) => {
+    let queryAudioPath: string | null = null;
     try {
       const client = getOpenAIClient();
       
@@ -122,11 +128,16 @@ Tags:
         return res.status(400).json({ error: "No audio file provided" });
       }
 
+      const audioPath = req.file.path;
+      const originalName = req.file.originalname || "audio.m4a";
+      const ext = path.extname(originalName) || ".m4a";
+      queryAudioPath = audioPath + ext;
+      fs.renameSync(audioPath, queryAudioPath);
+
       const notes = JSON.parse(req.body.notes || "[]");
       const customSections = JSON.parse(req.body.customSections || "[]");
 
-      const audioPath = req.file.path;
-      const audioStream = fs.createReadStream(audioPath);
+      const audioStream = fs.createReadStream(queryAudioPath);
 
       const transcription = await client.audio.transcriptions.create({
         file: audioStream,
@@ -203,7 +214,7 @@ Examples:
         (parsed.matchedNoteIds || []).includes(n.id)
       );
 
-      fs.unlinkSync(audioPath);
+      try { if (queryAudioPath) fs.unlinkSync(queryAudioPath); } catch {}
 
       res.json({
         query,
@@ -216,6 +227,7 @@ Examples:
       });
     } catch (error: any) {
       console.error("Query error:", error);
+      try { if (queryAudioPath) fs.unlinkSync(queryAudioPath); } catch {}
       res.status(500).json({ error: error.message || "Failed to process query" });
     }
   });
