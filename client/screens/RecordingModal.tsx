@@ -128,7 +128,6 @@ export default function RecordingModal() {
   };
 
   const stopRecording = async () => {
-    let cacheUri: string | null = null;
     let persistedUri: string | null = null;
 
     try {
@@ -137,7 +136,7 @@ export default function RecordingModal() {
       setIsRecording(false);
       setIsProcessing(true);
 
-      cacheUri = audioRecorder.uri;
+      const cacheUri = audioRecorder.uri;
       console.log("Recording stopped, URI:", cacheUri);
 
       if (!cacheUri) {
@@ -146,37 +145,19 @@ export default function RecordingModal() {
         return;
       }
 
-      // Wait for file to be fully written
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Verify cache file exists
-      const cacheInfo = await FileSystem.getInfoAsync(cacheUri);
-      if (!cacheInfo.exists) {
-        console.error("Cache file missing after recording");
-        setErrorMessage("Recording file not found. Please try again.");
-        setIsProcessing(false);
-        return;
-      }
-      console.log("Cache file verified, size:", cacheInfo.size);
-
-      // Copy to Documents for reliable upload
-      const recordingsDir = FileSystem.documentDirectory + "recordings/";
-      await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
-      persistedUri = recordingsDir + `recording_${Date.now()}.m4a`;
-
-      await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
-
-      // Verify persisted file exists
-      const persistedInfo = await FileSystem.getInfoAsync(persistedUri);
-      if (!persistedInfo.exists) {
-        console.error("Failed to persist recording to Documents");
+      // Try to copy to Documents immediately (cache files are very temporary)
+      try {
+        const recordingsDir = FileSystem.documentDirectory + "recordings/";
+        await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
+        persistedUri = recordingsDir + `recording_${Date.now()}.m4a`;
+        await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
+        console.log("Recording copied to:", persistedUri);
+      } catch (copyError) {
+        console.log("Copy failed, using cache URI directly");
         persistedUri = cacheUri;
-        cacheUri = null;
-      } else {
-        console.log("Recording persisted, size:", persistedInfo.size);
       }
 
-      // Upload and process
+      // Upload and process immediately
       const result = await transcribeAndProcess(persistedUri, sections);
       setTranscribedText(result.rawText);
 
@@ -203,15 +184,10 @@ export default function RecordingModal() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setIsProcessing(false);
     } finally {
-      // Clean up files AFTER upload is complete
-      if (persistedUri) {
+      // Clean up persisted file if we created one
+      if (persistedUri && persistedUri.includes("/recordings/")) {
         try {
           await FileSystem.deleteAsync(persistedUri, { idempotent: true });
-        } catch {}
-      }
-      if (cacheUri) {
-        try {
-          await FileSystem.deleteAsync(cacheUri, { idempotent: true });
         } catch {}
       }
     }
