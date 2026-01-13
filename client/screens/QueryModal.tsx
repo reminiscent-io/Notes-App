@@ -33,6 +33,7 @@ import { Spacing, Colors, BorderRadius } from "@/constants/theme";
 import { useNotes, Note } from "@/hooks/useNotes";
 import { useCustomSections } from "@/hooks/useCustomSections";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useSettings } from "@/hooks/useSettings";
 import { queryNotes } from "@/lib/api";
 import { NoteCard } from "@/components/NoteCard";
 
@@ -59,6 +60,7 @@ export default function QueryModal() {
   const { notes, toggleComplete, deleteNote, archiveNote } = useNotes();
   const { sections, addSection } = useCustomSections();
   const { cancelNoteReminder } = useNotifications();
+  const { settings } = useSettings();
 
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -187,7 +189,7 @@ export default function QueryModal() {
       }
 
       // Upload and process immediately
-      const result = await queryNotes(persistedUri, notes, sections);
+      const result = await queryNotes(persistedUri, notes, sections, settings.timezone);
       setQueryText(result.query);
       setResponse(result.response);
       setMatchedNotes(result.matchedNotes || []);

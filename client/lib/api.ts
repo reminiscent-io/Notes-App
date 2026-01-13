@@ -62,7 +62,8 @@ export async function transcribeAndProcess(
 export async function queryNotes(
   audioUri: string,
   notes: Note[],
-  customSections: CustomSection[] = []
+  customSections: CustomSection[] = [],
+  timezone: string = "America/New_York"
 ): Promise<QueryResult> {
   const formData = new FormData();
   
@@ -77,6 +78,7 @@ export async function queryNotes(
   } as any);
   formData.append("notes", JSON.stringify(notes));
   formData.append("customSections", JSON.stringify(customSections));
+  formData.append("timezone", timezone);
 
   const url = new URL("/api/query", getApiUrl());
   

@@ -154,6 +154,7 @@ Tags:
 
       const notes = JSON.parse(req.body.notes || "[]");
       const customSections = JSON.parse(req.body.customSections || "[]");
+      const userTimezone = req.body.timezone || "America/New_York";
 
       const audioStream = fs.createReadStream(queryAudioPath);
 
@@ -164,10 +165,38 @@ Tags:
 
       const query = transcription.text;
 
+      const formatDateInTimezone = (dateStr: string, tz: string) => {
+        try {
+          const date = new Date(dateStr);
+          return date.toLocaleString("en-US", {
+            timeZone: tz,
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          });
+        } catch {
+          return new Date(dateStr).toLocaleString();
+        }
+      };
+
+      const currentTime = new Date().toLocaleString("en-US", {
+        timeZone: userTimezone,
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+
       const notesContext = notes
         .map(
           (n: any) =>
-            `- [ID:${n.id}] [${n.category}] ${n.title}${n.completed ? " (DONE)" : ""}${n.archivedAt ? " (ARCHIVED)" : ""}${n.tags?.length ? ` [Tags: ${n.tags.join(", ")}]` : ""}${n.dueDate ? ` (Due: ${new Date(n.dueDate).toLocaleString()})` : ""}`
+            `- [ID:${n.id}] [${n.category}] ${n.title}${n.completed ? " (DONE)" : ""}${n.archivedAt ? " (ARCHIVED)" : ""}${n.tags?.length ? ` [Tags: ${n.tags.join(", ")}]` : ""}${n.dueDate ? ` (Due: ${formatDateInTimezone(n.dueDate, userTimezone)})` : ""}`
         )
         .join("\n");
 
@@ -180,10 +209,17 @@ Tags:
         messages: [
           {
             role: "system",
-            content: `You are a helpful voice notes assistant. The user has these notes:
+            content: `You are a helpful voice notes assistant.
+
+Current time: ${currentTime}
+User timezone: ${userTimezone}
+
+The user has these notes:
 
 ${notesContext || "No notes yet."}
 ${sectionsContext}
+
+IMPORTANT: When mentioning times, always use the exact times shown in the "Due:" fields above. Do not convert or adjust times - they are already in the user's timezone.
 
 You can:
 1. Answer questions about their notes conversationally
