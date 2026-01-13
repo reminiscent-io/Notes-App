@@ -83,7 +83,7 @@ export default function MainFeedScreen() {
     setRefreshing(false);
   }, [refreshNotes]);
 
-  const startRecording = useCallback(async () => {
+  const startRecording = async () => {
     try {
       if (hasPermission !== true) {
         const granted = await requestPermission();
@@ -108,17 +108,15 @@ export default function MainFeedScreen() {
       console.error("Failed to start recording:", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-  }, [hasPermission, audioRecorder]);
+  };
 
-  const stopRecording = useCallback(async () => {
+  const stopRecording = async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await audioRecorder.stop();
       setIsRecording(false);
       setIsProcessing(true);
 
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
       const uri = audioRecorder.uri;
       if (uri) {
         try {
@@ -148,9 +146,9 @@ export default function MainFeedScreen() {
       console.error("Failed to stop recording:", error);
       setIsProcessing(false);
     }
-  }, [audioRecorder, sections, addNote]);
+  };
 
-  const handleMicPress = useCallback(() => {
+  const handleMicPress = () => {
     if (isProcessing) return;
     
     if (isRecording) {
@@ -158,7 +156,7 @@ export default function MainFeedScreen() {
     } else {
       startRecording();
     }
-  }, [isRecording, isProcessing, startRecording, stopRecording]);
+  };
 
   const handleQueryPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
