@@ -199,7 +199,7 @@ export default function ArchivedNotesScreen() {
           </>
         ) : (
           <EmptyState
-            image={require("../../assets/images/empty-notes.png")}
+            icon="archive"
             title="No archived notes"
             subtitle="Archived notes will appear here"
           />

@@ -1,23 +1,31 @@
 import React from "react";
 import { View, StyleSheet, Image, ImageSourcePropType } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
+import { Feather } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing } from "@/constants/theme";
+import { Spacing, BorderRadius } from "@/constants/theme";
 
 interface EmptyStateProps {
-  image: ImageSourcePropType;
+  image?: ImageSourcePropType;
+  icon?: keyof typeof Feather.glyphMap;
   title: string;
   subtitle?: string;
 }
 
-export function EmptyState({ image, title, subtitle }: EmptyStateProps) {
+export function EmptyState({ image, icon, title, subtitle }: EmptyStateProps) {
   const { theme } = useTheme();
 
   return (
     <Animated.View entering={FadeIn.duration(500)} style={styles.container}>
-      <Image source={image} style={styles.image} resizeMode="contain" />
+      {image ? (
+        <Image source={image} style={styles.image} resizeMode="contain" />
+      ) : icon ? (
+        <View style={[styles.iconContainer, { backgroundColor: theme.backgroundSecondary }]}>
+          <Feather name={icon} size={32} color={theme.textTertiary} />
+        </View>
+      ) : null}
       <ThemedText type="title3" style={styles.title}>
         {title}
       </ThemedText>
@@ -46,6 +54,14 @@ const styles = StyleSheet.create({
     height: 180,
     marginBottom: Spacing.lg,
     opacity: 0.8,
+  },
+  iconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
   },
   title: {
     textAlign: "center",

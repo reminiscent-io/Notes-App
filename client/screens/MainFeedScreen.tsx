@@ -1,11 +1,10 @@
-import React, { useState, useCallback, useEffect, useLayoutEffect } from "react";
+import React, { useState, useCallback, useLayoutEffect } from "react";
 import {
   View,
   StyleSheet,
   ScrollView,
   RefreshControl,
   Pressable,
-  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight, HeaderButton } from "@react-navigation/elements";
@@ -13,37 +12,29 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Animated, {
-  useAnimatedStyle,
-  withSpring,
-  useSharedValue,
-  FadeInUp,
-} from "react-native-reanimated";
+import Animated, { FadeInUp } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, Shadows, Colors } from "@/constants/theme";
+import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { NoteCard } from "@/components/NoteCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { EmptyState } from "@/components/EmptyState";
+import { AnimatedOrb } from "@/components/AnimatedOrb";
 import { useNotes, Note } from "@/hooks/useNotes";
 import { useCustomSections } from "@/hooks/useCustomSections";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
 export default function MainFeedScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
-  const { theme, isDark } = useTheme();
-  const { notes, loading, refreshNotes, toggleComplete, deleteNote, archiveNote } = useNotes();
-  const { sections, deleteSection } = useCustomSections();
+  const { theme } = useTheme();
+  const { notes, loading, refreshNotes, toggleComplete, deleteNote } = useNotes();
+  const { sections } = useCustomSections();
   const [refreshing, setRefreshing] = useState(false);
-
-  const micScale = useSharedValue(1);
 
   const activeNotes = notes.filter((n) => !n.archivedAt);
   const todayNotes = activeNotes.filter((n) => n.category === "today");
@@ -70,18 +61,6 @@ export default function MainFeedScreen() {
     navigation.navigate("Query");
   }, [navigation]);
 
-  const micAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: micScale.value }],
-  }));
-
-  const handleMicPressIn = () => {
-    micScale.value = withSpring(0.92, { damping: 15, stiffness: 300 });
-  };
-
-  const handleMicPressOut = () => {
-    micScale.value = withSpring(1, { damping: 15, stiffness: 300 });
-  };
-
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
@@ -100,7 +79,6 @@ export default function MainFeedScreen() {
     title: string,
     icon: keyof typeof Feather.glyphMap,
     sectionNotes: Note[],
-    emptyImage: any,
     emptyText: string,
     delay: number
   ) => {
@@ -125,7 +103,7 @@ export default function MainFeedScreen() {
           ))
         ) : (
           <View style={styles.sectionEmpty}>
-            <Image source={emptyImage} style={styles.sectionEmptyImage} />
+            <Feather name={icon} size={24} color={theme.textTertiary} />
             <ThemedText
               type="caption"
               style={{ color: theme.textSecondary, textAlign: "center" }}
@@ -172,9 +150,9 @@ export default function MainFeedScreen() {
 
         {!hasAnyNotes && !loading ? (
           <EmptyState
-            image={require("../../assets/images/empty-notes.png")}
+            icon="mic"
             title="No notes yet"
-            subtitle="Tap the mic to start capturing thoughts"
+            subtitle="Tap the orb to start capturing thoughts"
           />
         ) : (
           <>
@@ -182,7 +160,6 @@ export default function MainFeedScreen() {
               "TODAY",
               "calendar",
               todayNotes,
-              require("../../assets/images/empty-today.png"),
               "Nothing scheduled for today",
               100
             )}
@@ -190,7 +167,6 @@ export default function MainFeedScreen() {
               "TOMORROW",
               "sunrise",
               tomorrowNotes,
-              require("../../assets/images/empty-today.png"),
               "Nothing scheduled for tomorrow",
               200
             )}
@@ -198,7 +174,6 @@ export default function MainFeedScreen() {
               "IDEAS",
               "zap",
               ideaNotes,
-              require("../../assets/images/empty-ideas.png"),
               "Capture your ideas here",
               300
             )}
@@ -206,7 +181,6 @@ export default function MainFeedScreen() {
               "TO BUY",
               "shopping-cart",
               shoppingNotes,
-              require("../../assets/images/empty-notes.png"),
               "Your shopping list is empty",
               400
             )}
@@ -215,7 +189,6 @@ export default function MainFeedScreen() {
                   "NOTES",
                   "file-text",
                   otherNotes,
-                  require("../../assets/images/empty-notes.png"),
                   "No other notes",
                   500
                 )
@@ -252,23 +225,13 @@ export default function MainFeedScreen() {
         )}
       </ScrollView>
 
-      <AnimatedPressable
-        onPress={handleMicPress}
-        onPressIn={handleMicPressIn}
-        onPressOut={handleMicPressOut}
-        style={[
-          styles.micButton,
-          micAnimatedStyle,
-          {
-            bottom: insets.bottom + Spacing.lg,
-            backgroundColor: isDark ? Colors.dark.accent : Colors.light.primary,
-          },
-          Shadows.micButton,
-        ]}
-        testID="button-record"
-      >
-        <Feather name="mic" size={32} color="#FFFFFF" />
-      </AnimatedPressable>
+      <View style={[styles.orbContainer, { bottom: insets.bottom + Spacing.sm }]}>
+        <AnimatedOrb
+          onPress={handleMicPress}
+          size={Spacing.micButtonSize}
+          testID="button-record"
+        />
+      </View>
     </View>
   );
 }
@@ -300,17 +263,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     gap: Spacing.sm,
   },
-  sectionEmptyImage: {
-    width: 80,
-    height: 80,
-    opacity: 0.6,
-  },
-  micButton: {
+  orbContainer: {
     position: "absolute",
     alignSelf: "center",
-    width: Spacing.micButtonSize,
-    height: Spacing.micButtonSize,
-    borderRadius: Spacing.micButtonSize / 2,
     alignItems: "center",
     justifyContent: "center",
   },
