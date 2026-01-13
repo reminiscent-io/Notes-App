@@ -6,6 +6,7 @@ import QueryModal from "@/screens/QueryModal";
 import SettingsScreen from "@/screens/SettingsScreen";
 import ArchivedNotesScreen from "@/screens/ArchivedNotesScreen";
 import EditNoteModal from "@/screens/EditNoteModal";
+import TimelineScreen from "@/screens/TimelineScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { HeaderTitle } from "@/components/HeaderTitle";
 import { Note } from "@/hooks/useNotes";
@@ -17,6 +18,7 @@ export type RootStackParamList = {
   Settings: undefined;
   ArchivedNotes: undefined;
   EditNote: { note: Note };
+  Timeline: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -72,6 +74,13 @@ export default function RootStackNavigator() {
           presentation: "transparentModal",
           headerShown: false,
           animation: "fade",
+        }}
+      />
+      <Stack.Screen
+        name="Timeline"
+        component={TimelineScreen}
+        options={{
+          headerTitle: "Timeline",
         }}
       />
     </Stack.Navigator>

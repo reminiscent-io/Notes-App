@@ -16,14 +16,34 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 import { useCustomSections, CustomSection } from "@/hooks/useCustomSections";
 import { useNotes } from "@/hooks/useNotes";
 import { SectionHeader } from "@/components/SectionHeader";
-import { useNotifications } from "@/hooks/useNotifications";
+import { useSettings, Settings } from "@/hooks/useSettings";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+const THEME_OPTIONS: { value: Settings["themeMode"]; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+  { value: "system", label: "System", icon: "smartphone" },
+  { value: "light", label: "Light", icon: "sun" },
+  { value: "dark", label: "Dark", icon: "moon" },
+];
+
+const REMINDER_HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+const LEAD_MINUTES = [5, 10, 15, 30, 60];
+
+function formatHour(hour: number): string {
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const h = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+  return `${h}:00 ${ampm}`;
+}
+
+function formatMinutes(mins: number): string {
+  if (mins === 60) return "1 hour";
+  return `${mins} min`;
+}
 
 export default function SettingsScreen() {
   const headerHeight = useHeaderHeight();
@@ -32,6 +52,7 @@ export default function SettingsScreen() {
   const { theme } = useTheme();
   const { sections, deleteSection } = useCustomSections();
   const { notes, updateNoteTags } = useNotes();
+  const { settings, updateSettings } = useSettings();
 
   const archivedNotes = notes.filter((n) => n.archivedAt);
   const archivedCount = archivedNotes.length;
@@ -67,6 +88,32 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     navigation.navigate("ArchivedNotes");
   }, [navigation]);
+
+  const handleThemeChange = useCallback((mode: Settings["themeMode"]) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    updateSettings({ themeMode: mode });
+  }, [updateSettings]);
+
+  const handleTodayHourChange = useCallback(() => {
+    const currentIndex = REMINDER_HOURS.indexOf(settings.todayReminderHour);
+    const nextIndex = (currentIndex + 1) % REMINDER_HOURS.length;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    updateSettings({ todayReminderHour: REMINDER_HOURS[nextIndex] });
+  }, [settings.todayReminderHour, updateSettings]);
+
+  const handleTomorrowHourChange = useCallback(() => {
+    const currentIndex = REMINDER_HOURS.indexOf(settings.tomorrowReminderHour);
+    const nextIndex = (currentIndex + 1) % REMINDER_HOURS.length;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    updateSettings({ tomorrowReminderHour: REMINDER_HOURS[nextIndex] });
+  }, [settings.tomorrowReminderHour, updateSettings]);
+
+  const handleLeadTimeChange = useCallback(() => {
+    const currentIndex = LEAD_MINUTES.indexOf(settings.reminderLeadMinutes);
+    const nextIndex = (currentIndex + 1) % LEAD_MINUTES.length;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    updateSettings({ reminderLeadMinutes: LEAD_MINUTES[nextIndex] });
+  }, [settings.reminderLeadMinutes, updateSettings]);
 
   const renderSectionItem = (section: CustomSection, index: number) => (
     <Animated.View
@@ -133,6 +180,107 @@ export default function SettingsScreen() {
           entering={FadeInUp.delay(50).duration(300)}
           style={styles.section}
         >
+          <SectionHeader title="APPEARANCE" icon="eye" />
+          <View style={[styles.settingCard, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLabel}>
+                <Feather name="moon" size={18} color={theme.text} />
+                <ThemedText type="body" style={{ color: theme.text, marginLeft: Spacing.sm }}>
+                  Theme
+                </ThemedText>
+              </View>
+              <View style={styles.themeButtons}>
+                {THEME_OPTIONS.map((opt) => (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => handleThemeChange(opt.value)}
+                    style={[
+                      styles.themeButton,
+                      {
+                        backgroundColor:
+                          settings.themeMode === opt.value
+                            ? Colors.light.accent
+                            : theme.backgroundTertiary,
+                        borderColor:
+                          settings.themeMode === opt.value
+                            ? Colors.light.accent
+                            : theme.textTertiary,
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name={opt.icon}
+                      size={14}
+                      color={settings.themeMode === opt.value ? "#FFFFFF" : theme.textSecondary}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+
+        <Animated.View
+          entering={FadeInUp.delay(100).duration(300)}
+          style={styles.section}
+        >
+          <SectionHeader title="NOTIFICATIONS" icon="bell" />
+          <View style={[styles.settingCard, { backgroundColor: theme.backgroundDefault }]}>
+            <Pressable onPress={handleTodayHourChange} style={styles.settingRow}>
+              <View style={styles.settingLabel}>
+                <Feather name="calendar" size={18} color={theme.text} />
+                <ThemedText type="body" style={{ color: theme.text, marginLeft: Spacing.sm }}>
+                  Today reminder
+                </ThemedText>
+              </View>
+              <View style={styles.settingValue}>
+                <ThemedText type="body" style={{ color: Colors.light.accent }}>
+                  {formatHour(settings.todayReminderHour)}
+                </ThemedText>
+                <Feather name="chevron-right" size={16} color={theme.textTertiary} />
+              </View>
+            </Pressable>
+
+            <View style={[styles.divider, { backgroundColor: theme.textTertiary }]} />
+
+            <Pressable onPress={handleTomorrowHourChange} style={styles.settingRow}>
+              <View style={styles.settingLabel}>
+                <Feather name="sunrise" size={18} color={theme.text} />
+                <ThemedText type="body" style={{ color: theme.text, marginLeft: Spacing.sm }}>
+                  Tomorrow reminder
+                </ThemedText>
+              </View>
+              <View style={styles.settingValue}>
+                <ThemedText type="body" style={{ color: Colors.light.accent }}>
+                  {formatHour(settings.tomorrowReminderHour)}
+                </ThemedText>
+                <Feather name="chevron-right" size={16} color={theme.textTertiary} />
+              </View>
+            </Pressable>
+
+            <View style={[styles.divider, { backgroundColor: theme.textTertiary }]} />
+
+            <Pressable onPress={handleLeadTimeChange} style={styles.settingRow}>
+              <View style={styles.settingLabel}>
+                <Feather name="clock" size={18} color={theme.text} />
+                <ThemedText type="body" style={{ color: theme.text, marginLeft: Spacing.sm }}>
+                  Remind before due
+                </ThemedText>
+              </View>
+              <View style={styles.settingValue}>
+                <ThemedText type="body" style={{ color: Colors.light.accent }}>
+                  {formatMinutes(settings.reminderLeadMinutes)}
+                </ThemedText>
+                <Feather name="chevron-right" size={16} color={theme.textTertiary} />
+              </View>
+            </Pressable>
+          </View>
+        </Animated.View>
+
+        <Animated.View
+          entering={FadeInUp.delay(150).duration(300)}
+          style={styles.section}
+        >
           <SectionHeader title="CUSTOM SECTIONS" icon="folder" />
           {sections.length > 0 ? (
             <View style={styles.sectionsList}>
@@ -157,7 +305,7 @@ export default function SettingsScreen() {
         </Animated.View>
 
         <Animated.View
-          entering={FadeInUp.delay(150).duration(300)}
+          entering={FadeInUp.delay(200).duration(300)}
           style={styles.section}
         >
           <SectionHeader title="ARCHIVED NOTES" icon="archive" />
@@ -210,6 +358,41 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: Spacing.xl,
+  },
+  settingCard: {
+    borderRadius: BorderRadius.xs,
+    overflow: "hidden",
+  },
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.md,
+  },
+  settingLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  settingValue: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  themeButtons: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+  },
+  themeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: Spacing.md,
   },
   sectionsList: {
     gap: Spacing.sm,

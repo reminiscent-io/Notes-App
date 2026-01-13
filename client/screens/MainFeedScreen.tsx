@@ -192,13 +192,22 @@ export default function MainFeedScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <HeaderButton
-          onPress={() => navigation.navigate("Settings")}
-          pressColor="transparent"
-          pressOpacity={0.7}
-        >
-          <Feather name="settings" size={22} color={theme.text} />
-        </HeaderButton>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
+          <HeaderButton
+            onPress={() => navigation.navigate("Timeline")}
+            pressColor="transparent"
+            pressOpacity={0.7}
+          >
+            <Feather name="list" size={22} color={theme.text} />
+          </HeaderButton>
+          <HeaderButton
+            onPress={() => navigation.navigate("Settings")}
+            pressColor="transparent"
+            pressOpacity={0.7}
+          >
+            <Feather name="settings" size={22} color={theme.text} />
+          </HeaderButton>
+        </View>
       ),
     });
   }, [navigation, theme]);
