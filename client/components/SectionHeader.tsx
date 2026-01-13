@@ -9,9 +9,10 @@ import { Spacing } from "@/constants/theme";
 interface SectionHeaderProps {
   title: string;
   icon: keyof typeof Feather.glyphMap;
+  count?: number;
 }
 
-export function SectionHeader({ title, icon }: SectionHeaderProps) {
+export function SectionHeader({ title, icon, count }: SectionHeaderProps) {
   const { theme } = useTheme();
 
   return (
@@ -23,6 +24,13 @@ export function SectionHeader({ title, icon }: SectionHeaderProps) {
       >
         {title}
       </ThemedText>
+      {count !== undefined && count > 0 ? (
+        <View style={[styles.countBadge, { backgroundColor: theme.textTertiary }]}>
+          <ThemedText type="caption" style={styles.countText}>
+            {count}
+          </ThemedText>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -36,5 +44,16 @@ const styles = StyleSheet.create({
   },
   title: {
     letterSpacing: 1,
+  },
+  countBadge: {
+    marginLeft: Spacing.xs,
+    paddingHorizontal: Spacing.xs + 2,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  countText: {
+    fontSize: 10,
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
 });

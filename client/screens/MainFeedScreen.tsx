@@ -28,6 +28,7 @@ import { NoteCard } from "@/components/NoteCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { useNotes, Note } from "@/hooks/useNotes";
+import { useCustomSections } from "@/hooks/useCustomSections";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -38,18 +39,20 @@ export default function MainFeedScreen() {
   const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
   const { theme, isDark } = useTheme();
-  const { notes, loading, refreshNotes, toggleComplete, deleteNote } = useNotes();
+  const { notes, loading, refreshNotes, toggleComplete, deleteNote, archiveNote } = useNotes();
+  const { sections, deleteSection } = useCustomSections();
   const [refreshing, setRefreshing] = useState(false);
 
   const micScale = useSharedValue(1);
 
-  const todayNotes = notes.filter((n) => n.category === "today");
-  const tomorrowNotes = notes.filter((n) => n.category === "tomorrow");
-  const ideaNotes = notes.filter((n) => n.category === "idea");
-  const shoppingNotes = notes.filter((n) => n.category === "shopping");
-  const otherNotes = notes.filter((n) => n.category === "other");
+  const activeNotes = notes.filter((n) => !n.archivedAt);
+  const todayNotes = activeNotes.filter((n) => n.category === "today");
+  const tomorrowNotes = activeNotes.filter((n) => n.category === "tomorrow");
+  const ideaNotes = activeNotes.filter((n) => n.category === "idea");
+  const shoppingNotes = activeNotes.filter((n) => n.category === "shopping");
+  const otherNotes = activeNotes.filter((n) => n.category === "other");
 
-  const hasAnyNotes = notes.length > 0;
+  const hasAnyNotes = activeNotes.length > 0;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -203,6 +206,34 @@ export default function MainFeedScreen() {
                   500
                 )
               : null}
+            {sections.map((section, index) => {
+              const sectionNotes = activeNotes.filter(
+                (n) => n.tags?.includes(section.name)
+              );
+              if (sectionNotes.length === 0) return null;
+              return (
+                <Animated.View
+                  key={section.id}
+                  entering={FadeInUp.delay(600 + index * 100).duration(400)}
+                  style={styles.section}
+                >
+                  <SectionHeader
+                    title={section.name.toUpperCase()}
+                    icon={section.icon as keyof typeof Feather.glyphMap}
+                    count={sectionNotes.length}
+                  />
+                  {sectionNotes.map((note, noteIndex) => (
+                    <NoteCard
+                      key={note.id}
+                      note={note}
+                      onToggleComplete={() => toggleComplete(note.id)}
+                      onDelete={() => deleteNote(note.id)}
+                      delay={600 + index * 100 + noteIndex * 50}
+                    />
+                  ))}
+                </Animated.View>
+              );
+            })}
           </>
         )}
       </ScrollView>
