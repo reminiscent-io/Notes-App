@@ -139,7 +139,7 @@ export default function QueryModal() {
 
           if (result.action && result.matchedNotes && result.matchedNotes.length > 0) {
             for (const note of result.matchedNotes) {
-              if (result.action === "complete") {
+              if (result.action === "complete" && !note.completed) {
                 await toggleComplete(note.id);
               } else if (result.action === "delete") {
                 await deleteNote(note.id);
