@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
   Pressable,
   Platform,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -31,6 +32,11 @@ import { transcribeAndProcess } from "@/lib/api";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+interface PermissionStatus {
+  granted: boolean;
+  canAskAgain: boolean;
+}
+
 export default function RecordingModal() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -40,7 +46,8 @@ export default function RecordingModal() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcribedText, setTranscribedText] = useState("");
-  const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus | null>(null);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const pulseScale = useSharedValue(1);
@@ -51,8 +58,16 @@ export default function RecordingModal() {
   }, []);
 
   const checkPermissions = async () => {
-    const status = await AudioModule.requestRecordingPermissionsAsync();
-    setPermissionGranted(status.granted);
+    try {
+      const status = await AudioModule.getRecordingPermissionsAsync();
+      setPermissionStatus({
+        granted: status.granted,
+        canAskAgain: status.canAskAgain,
+      });
+    } catch (error) {
+      console.error("Failed to check permissions:", error);
+      setPermissionStatus({ granted: false, canAskAgain: true });
+    }
   };
 
   useEffect(() => {
@@ -89,12 +104,15 @@ export default function RecordingModal() {
 
   const startRecording = async () => {
     try {
+      setErrorMessage("");
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setTranscribedText("");
       await audioRecorder.record();
       setIsRecording(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to start recording:", error);
+      setErrorMessage("Could not start recording. Please try again.");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
@@ -124,16 +142,18 @@ export default function RecordingModal() {
           setTimeout(() => {
             navigation.goBack();
           }, 1000);
-        } catch (error) {
+        } catch (error: any) {
           console.error("Failed to process recording:", error);
-          setTranscribedText("Failed to process. Please try again.");
+          setTranscribedText("");
+          setErrorMessage(error.message || "Failed to process. Please try again.");
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         }
       }
 
       setIsProcessing(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to stop recording:", error);
+      setErrorMessage("Could not stop recording. Please try again.");
       setIsProcessing(false);
     }
   };
@@ -154,11 +174,41 @@ export default function RecordingModal() {
   };
 
   const handleRequestPermission = async () => {
-    const status = await AudioModule.requestRecordingPermissionsAsync();
-    setPermissionGranted(status.granted);
+    try {
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      setPermissionStatus({
+        granted: status.granted,
+        canAskAgain: status.canAskAgain,
+      });
+    } catch (error) {
+      console.error("Failed to request permission:", error);
+    }
   };
 
-  if (permissionGranted === false) {
+  const handleOpenSettings = async () => {
+    if (Platform.OS !== "web") {
+      try {
+        await Linking.openSettings();
+      } catch (error) {
+        console.error("Failed to open settings:", error);
+      }
+    }
+  };
+
+  if (permissionStatus === null) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.overlay }]}>
+        <Pressable style={styles.backdrop} onPress={handleClose} />
+        <View style={styles.content}>
+          <ActivityIndicator size="large" color={Colors.light.accent} />
+        </View>
+      </View>
+    );
+  }
+
+  if (!permissionStatus.granted) {
+    const canRequest = permissionStatus.canAskAgain;
+    
     return (
       <View style={[styles.container, { backgroundColor: theme.overlay }]}>
         <Pressable style={styles.backdrop} onPress={handleClose} />
@@ -183,16 +233,37 @@ export default function RecordingModal() {
               type="body"
               style={{ color: "rgba(255,255,255,0.7)", textAlign: "center", marginTop: Spacing.sm }}
             >
-              Voice Notes needs access to your microphone to record notes.
+              {canRequest
+                ? "Voice Notes needs access to your microphone to record notes."
+                : "Microphone access was denied. Please enable it in Settings to use voice recording."}
             </ThemedText>
-            <Pressable
-              onPress={handleRequestPermission}
-              style={[styles.permissionButton, { backgroundColor: Colors.light.accent }]}
-            >
-              <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
-                Enable Microphone
+            
+            {canRequest ? (
+              <Pressable
+                onPress={handleRequestPermission}
+                style={[styles.permissionButton, { backgroundColor: Colors.light.accent }]}
+              >
+                <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
+                  Enable Microphone
+                </ThemedText>
+              </Pressable>
+            ) : Platform.OS !== "web" ? (
+              <Pressable
+                onPress={handleOpenSettings}
+                style={[styles.permissionButton, { backgroundColor: Colors.light.accent }]}
+              >
+                <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
+                  Open Settings
+                </ThemedText>
+              </Pressable>
+            ) : (
+              <ThemedText
+                type="caption"
+                style={{ color: "rgba(255,255,255,0.5)", textAlign: "center", marginTop: Spacing.lg }}
+              >
+                Run in Expo Go to use this feature
               </ThemedText>
-            </Pressable>
+            )}
           </View>
         </Animated.View>
       </View>
@@ -268,6 +339,17 @@ export default function RecordingModal() {
               </ThemedText>
             </Animated.View>
           ) : null}
+
+          {errorMessage ? (
+            <Animated.View
+              entering={FadeIn}
+              style={[styles.errorContainer, { backgroundColor: "rgba(239,68,68,0.2)" }]}
+            >
+              <ThemedText type="body" style={{ color: Colors.light.error, textAlign: "center" }}>
+                {errorMessage}
+              </ThemedText>
+            </Animated.View>
+          ) : null}
         </View>
       </Animated.View>
     </View>
@@ -316,6 +398,13 @@ const styles = StyleSheet.create({
   },
   transcriptionContainer: {
     marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    maxWidth: "90%",
+  },
+  errorContainer: {
+    marginTop: Spacing.lg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
