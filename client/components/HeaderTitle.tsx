@@ -4,11 +4,7 @@ import { View, StyleSheet, Image } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { Spacing } from "@/constants/theme";
 
-interface HeaderTitleProps {
-  title: string;
-}
-
-export function HeaderTitle({ title }: HeaderTitleProps) {
+export function HeaderTitle() {
   return (
     <View style={styles.container}>
       <Image
@@ -16,7 +12,7 @@ export function HeaderTitle({ title }: HeaderTitleProps) {
         style={styles.icon}
         resizeMode="contain"
       />
-      <ThemedText style={styles.title}>{title}</ThemedText>
+      <ThemedText type="title3">Voice Notes</ThemedText>
     </View>
   );
 }
@@ -31,9 +27,6 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     marginRight: Spacing.sm,
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: "600",
+    borderRadius: 6,
   },
 });

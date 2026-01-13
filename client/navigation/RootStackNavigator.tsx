@@ -1,12 +1,15 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import MainTabNavigator from "@/navigation/MainTabNavigator";
-import ModalScreen from "@/screens/ModalScreen";
+import MainFeedScreen from "@/screens/MainFeedScreen";
+import RecordingModal from "@/screens/RecordingModal";
+import QueryModal from "@/screens/QueryModal";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { HeaderTitle } from "@/components/HeaderTitle";
 
 export type RootStackParamList = {
-  Main: undefined;
-  Modal: undefined;
+  MainFeed: undefined;
+  Recording: undefined;
+  Query: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -17,16 +20,28 @@ export default function RootStackNavigator() {
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen
-        name="Main"
-        component={MainTabNavigator}
-        options={{ headerShown: false }}
+        name="MainFeed"
+        component={MainFeedScreen}
+        options={{
+          headerTitle: () => <HeaderTitle />,
+        }}
       />
       <Stack.Screen
-        name="Modal"
-        component={ModalScreen}
+        name="Recording"
+        component={RecordingModal}
         options={{
-          presentation: "modal",
-          headerTitle: "Modal",
+          presentation: "transparentModal",
+          headerShown: false,
+          animation: "fade",
+        }}
+      />
+      <Stack.Screen
+        name="Query"
+        component={QueryModal}
+        options={{
+          presentation: "transparentModal",
+          headerShown: false,
+          animation: "fade",
         }}
       />
     </Stack.Navigator>

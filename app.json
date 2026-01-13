@@ -1,25 +1,29 @@
 {
   "expo": {
-    "name": "my-app",
-    "slug": "my-app",
+    "name": "Voice Notes",
+    "slug": "voice-notes",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "voicenotes",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.voicenotes.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Voice Notes needs access to your microphone to record voice notes."
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#2D3748",
+        "foregroundImage": "./assets/images/icon.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.voicenotes.app",
+      "permissions": ["RECORD_AUDIO"]
     },
     "web": {
       "output": "single",
@@ -34,11 +38,17 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#1A202C"
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Voice Notes needs access to your microphone to record voice notes."
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true

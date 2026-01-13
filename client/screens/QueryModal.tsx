@@ -1,0 +1,417 @@
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import Animated, {
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  useSharedValue,
+  FadeIn,
+  FadeOut,
+  withSpring,
+  cancelAnimation,
+} from "react-native-reanimated";
+import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
+
+import { ThemedText } from "@/components/ThemedText";
+import { useTheme } from "@/hooks/useTheme";
+import { Spacing, Colors, BorderRadius } from "@/constants/theme";
+import { useNotes, Note } from "@/hooks/useNotes";
+import { queryNotes } from "@/lib/api";
+import { NoteCard } from "@/components/NoteCard";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+export default function QueryModal() {
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+  const { theme, isDark } = useTheme();
+  const { notes, toggleComplete, deleteNote } = useNotes();
+
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [queryText, setQueryText] = useState("");
+  const [response, setResponse] = useState("");
+  const [matchedNotes, setMatchedNotes] = useState<Note[]>([]);
+  const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
+
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const pulseScale = useSharedValue(1);
+  const micScale = useSharedValue(1);
+
+  useEffect(() => {
+    checkPermissions();
+  }, []);
+
+  const checkPermissions = async () => {
+    const status = await AudioModule.requestRecordingPermissionsAsync();
+    setPermissionGranted(status.granted);
+  };
+
+  useEffect(() => {
+    if (isRecording) {
+      pulseScale.value = withRepeat(
+        withSequence(
+          withTiming(1.15, { duration: 600 }),
+          withTiming(1, { duration: 600 })
+        ),
+        -1,
+        true
+      );
+    } else {
+      cancelAnimation(pulseScale);
+      pulseScale.value = withTiming(1, { duration: 200 });
+    }
+  }, [isRecording]);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+  }));
+
+  const micAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: micScale.value }],
+  }));
+
+  const handleMicPressIn = () => {
+    micScale.value = withSpring(0.9, { damping: 15, stiffness: 300 });
+  };
+
+  const handleMicPressOut = () => {
+    micScale.value = withSpring(1, { damping: 15, stiffness: 300 });
+  };
+
+  const startRecording = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setQueryText("");
+      setResponse("");
+      setMatchedNotes([]);
+      await audioRecorder.record();
+      setIsRecording(true);
+    } catch (error) {
+      console.error("Failed to start recording:", error);
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await audioRecorder.stop();
+      setIsRecording(false);
+      setIsProcessing(true);
+
+      const uri = audioRecorder.uri;
+      if (uri) {
+        try {
+          const result = await queryNotes(uri, notes);
+          setQueryText(result.query);
+          setResponse(result.response);
+          setMatchedNotes(result.matchedNotes || []);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (error) {
+          console.error("Failed to process query:", error);
+          setResponse("Sorry, I couldn't process that. Please try again.");
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        }
+      }
+
+      setIsProcessing(false);
+    } catch (error) {
+      console.error("Failed to stop recording:", error);
+      setIsProcessing(false);
+    }
+  };
+
+  const handleMicPress = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
+  const handleClose = () => {
+    if (isRecording) {
+      audioRecorder.stop();
+    }
+    navigation.goBack();
+  };
+
+  const handleRequestPermission = async () => {
+    const status = await AudioModule.requestRecordingPermissionsAsync();
+    setPermissionGranted(status.granted);
+  };
+
+  if (permissionGranted === false) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.overlay }]}>
+        <Pressable style={styles.backdrop} onPress={handleClose} />
+        <Animated.View
+          entering={FadeIn}
+          exiting={FadeOut}
+          style={[styles.content, { paddingBottom: insets.bottom + Spacing.xl }]}
+        >
+          <Pressable style={styles.closeButton} onPress={handleClose}>
+            <Feather name="x" size={24} color="#FFFFFF" />
+          </Pressable>
+
+          <View style={styles.permissionContainer}>
+            <Feather name="mic-off" size={48} color="#FFFFFF" />
+            <ThemedText
+              type="title3"
+              style={{ color: "#FFFFFF", textAlign: "center", marginTop: Spacing.lg }}
+            >
+              Microphone Access Required
+            </ThemedText>
+            <ThemedText
+              type="body"
+              style={{ color: "rgba(255,255,255,0.7)", textAlign: "center", marginTop: Spacing.sm }}
+            >
+              Voice Notes needs access to your microphone to search your notes.
+            </ThemedText>
+            <Pressable
+              onPress={handleRequestPermission}
+              style={[styles.permissionButton, { backgroundColor: Colors.light.accent }]}
+            >
+              <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
+                Enable Microphone
+              </ThemedText>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.overlay }]}>
+      <Pressable style={styles.backdrop} onPress={handleClose} />
+      <Animated.View
+        entering={FadeIn}
+        exiting={FadeOut}
+        style={[styles.content, { paddingBottom: insets.bottom + Spacing.xl }]}
+      >
+        <Pressable
+          style={[styles.closeButton, { top: insets.top + Spacing.md }]}
+          onPress={handleClose}
+        >
+          <Feather name="x" size={24} color="#FFFFFF" />
+        </Pressable>
+
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: insets.top + 60 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.centerContent}>
+            {isProcessing ? (
+              <View style={styles.processingContainer}>
+                <ActivityIndicator size="large" color={Colors.light.accent} />
+                <ThemedText
+                  type="body"
+                  style={{ color: "#FFFFFF", marginTop: Spacing.lg }}
+                >
+                  Searching...
+                </ThemedText>
+              </View>
+            ) : response ? (
+              <View style={styles.resultsContainer}>
+                {queryText ? (
+                  <View style={[styles.queryBubble, { backgroundColor: "rgba(255,255,255,0.1)" }]}>
+                    <ThemedText type="caption" style={{ color: "rgba(255,255,255,0.6)" }}>
+                      You asked:
+                    </ThemedText>
+                    <ThemedText type="body" style={{ color: "#FFFFFF", marginTop: Spacing.xs }}>
+                      "{queryText}"
+                    </ThemedText>
+                  </View>
+                ) : null}
+
+                <View style={[styles.responseBubble, { backgroundColor: Colors.light.accent }]}>
+                  <ThemedText type="body" style={{ color: "#FFFFFF" }}>
+                    {response}
+                  </ThemedText>
+                </View>
+
+                {matchedNotes.length > 0 ? (
+                  <View style={styles.matchedNotesContainer}>
+                    <ThemedText
+                      type="caption"
+                      style={{ color: "rgba(255,255,255,0.6)", marginBottom: Spacing.sm }}
+                    >
+                      Related notes:
+                    </ThemedText>
+                    {matchedNotes.map((note) => (
+                      <NoteCard
+                        key={note.id}
+                        note={note}
+                        onToggleComplete={() => toggleComplete(note.id)}
+                        onDelete={() => deleteNote(note.id)}
+                        compact
+                      />
+                    ))}
+                  </View>
+                ) : null}
+
+                <Pressable
+                  onPress={() => {
+                    setQueryText("");
+                    setResponse("");
+                    setMatchedNotes([]);
+                  }}
+                  style={[styles.askAgainButton, { borderColor: "rgba(255,255,255,0.3)" }]}
+                >
+                  <Feather name="refresh-cw" size={16} color="#FFFFFF" />
+                  <ThemedText type="body" style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}>
+                    Ask another question
+                  </ThemedText>
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <Animated.View
+                  style={[styles.pulseRing, pulseStyle, { opacity: isRecording ? 0.3 : 0 }]}
+                />
+                <AnimatedPressable
+                  onPress={handleMicPress}
+                  onPressIn={handleMicPressIn}
+                  onPressOut={handleMicPressOut}
+                  style={[
+                    styles.micButton,
+                    micAnimatedStyle,
+                    { backgroundColor: Colors.light.accent },
+                  ]}
+                  testID="button-query-mic"
+                >
+                  <Feather
+                    name={isRecording ? "square" : "search"}
+                    size={36}
+                    color="#FFFFFF"
+                  />
+                </AnimatedPressable>
+
+                <ThemedText
+                  type="title3"
+                  style={{ color: "#FFFFFF", marginTop: Spacing.xl, textAlign: "center" }}
+                >
+                  {isRecording ? "Listening..." : "Ask me anything"}
+                </ThemedText>
+                <ThemedText
+                  type="body"
+                  style={{ color: "rgba(255,255,255,0.7)", marginTop: Spacing.sm, textAlign: "center" }}
+                >
+                  {isRecording
+                    ? "Tap to stop"
+                    : '"What do I need to do today?"'}
+                </ThemedText>
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </Animated.View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  content: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: Spacing.lg,
+  },
+  closeButton: {
+    position: "absolute",
+    top: Spacing.xl + 44,
+    right: Spacing.lg,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  centerContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 400,
+  },
+  pulseRing: {
+    position: "absolute",
+    width: Spacing.micButtonSize + 40,
+    height: Spacing.micButtonSize + 40,
+    borderRadius: (Spacing.micButtonSize + 40) / 2,
+    backgroundColor: Colors.light.accent,
+  },
+  micButton: {
+    width: Spacing.micButtonSize,
+    height: Spacing.micButtonSize,
+    borderRadius: Spacing.micButtonSize / 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  permissionContainer: {
+    alignItems: "center",
+    paddingHorizontal: Spacing.xl,
+  },
+  permissionButton: {
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  processingContainer: {
+    alignItems: "center",
+  },
+  resultsContainer: {
+    width: "100%",
+    alignItems: "center",
+  },
+  queryBubble: {
+    width: "100%",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+  },
+  responseBubble: {
+    width: "100%",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.lg,
+  },
+  matchedNotesContainer: {
+    width: "100%",
+    marginBottom: Spacing.lg,
+  },
+  askAgainButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+  },
+});

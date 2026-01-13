@@ -6,7 +6,7 @@ import { Typography } from "@/constants/theme";
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
   darkColor?: string;
-  type?: "h1" | "h2" | "h3" | "h4" | "body" | "small" | "link";
+  type?: "display" | "title1" | "title3" | "body" | "caption" | "label";
 };
 
 export function ThemedText({
@@ -27,29 +27,23 @@ export function ThemedText({
       return lightColor;
     }
 
-    if (type === "link") {
-      return theme.link;
-    }
-
     return theme.text;
   };
 
   const getTypeStyle = () => {
     switch (type) {
-      case "h1":
-        return Typography.h1;
-      case "h2":
-        return Typography.h2;
-      case "h3":
-        return Typography.h3;
-      case "h4":
-        return Typography.h4;
+      case "display":
+        return Typography.display;
+      case "title1":
+        return Typography.title1;
+      case "title3":
+        return Typography.title3;
       case "body":
         return Typography.body;
-      case "small":
-        return Typography.small;
-      case "link":
-        return Typography.link;
+      case "caption":
+        return Typography.caption;
+      case "label":
+        return Typography.label;
       default:
         return Typography.body;
     }
