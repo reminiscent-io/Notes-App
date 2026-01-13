@@ -65,11 +65,16 @@ IMPORTANT: If the user mentions multiple unrelated items, tasks, or ideas, creat
 
 For EACH distinct note, determine:
 1. A short title (max 50 chars) summarizing that specific note
+   - DO NOT include times in the title (e.g., "Meeting at 3pm" should be "Meeting" not "Meeting at 3pm")
+   - Focus on the core subject/action only
 2. Category: "today" (due today), "tomorrow" (due tomorrow), "idea" (creative thought/project), "shopping" (items to buy), or "other"
 3. Due date if mentioned (in ISO format)
 4. Entities mentioned (names of people, places, things)
 5. Tags: Which custom sections this note belongs to
-6. rawText: The portion of the transcript that relates to this specific note
+6. rawText: The FULL portion of the transcript that relates to this specific note
+   - Keep the complete spoken content, only fix minor grammar issues to make it readable
+   - Preserve the user's original wording and details
+   - Only clean up obvious speech artifacts (um, uh, repeated words)
 ${sectionsContext}
 
 Respond with JSON in this exact format:
