@@ -21,6 +21,7 @@ interface NoteCardProps {
   note: Note;
   onToggleComplete: () => void;
   onDelete: () => void;
+  onEdit?: () => void;
   delay?: number;
   compact?: boolean;
 }
@@ -31,6 +32,7 @@ export function NoteCard({
   note,
   onToggleComplete,
   onDelete,
+  onEdit,
   delay = 0,
   compact = false,
 }: NoteCardProps) {
@@ -67,6 +69,21 @@ export function NoteCard({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     onDelete();
   };
+
+  const handleEdit = () => {
+    if (onEdit) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      onEdit();
+    }
+  };
+
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(500)
+    .onEnd((_, success) => {
+      if (success) {
+        runOnJS(handleEdit)();
+      }
+    });
 
   const panGesture = Gesture.Pan()
     .activeOffsetX([-20, 20])
@@ -118,7 +135,7 @@ export function NoteCard({
         <Feather name="trash-2" size={24} color={Colors.light.error} />
       </Animated.View>
 
-      <GestureDetector gesture={panGesture}>
+      <GestureDetector gesture={Gesture.Race(longPressGesture, panGesture)}>
         <AnimatedPressable
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}

@@ -226,6 +226,7 @@ export default function MainFeedScreen() {
               note={note}
               onToggleComplete={() => toggleComplete(note.id)}
               onDelete={() => deleteNote(note.id)}
+              onEdit={() => navigation.navigate("EditNote", { note })}
               delay={delay + index * 50}
             />
           ))

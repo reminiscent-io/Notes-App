@@ -24,6 +24,14 @@ interface NoteInput {
   tags?: string[];
 }
 
+interface NoteUpdate {
+  title?: string;
+  rawText?: string;
+  category?: Note["category"];
+  dueDate?: string | null;
+  tags?: string[];
+}
+
 interface NotesContextType {
   notes: Note[];
   loading: boolean;
@@ -34,6 +42,7 @@ interface NotesContextType {
   archiveNote: (id: string) => Promise<void>;
   unarchiveNote: (id: string) => Promise<void>;
   updateNoteTags: (id: string, tags: string[]) => Promise<void>;
+  updateNote: (id: string, updates: NoteUpdate) => Promise<void>;
 }
 
 const NotesContext = createContext<NotesContextType | undefined>(undefined);
@@ -126,6 +135,16 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const updateNote = useCallback(async (id: string, updates: NoteUpdate) => {
+    setNotes((prev) => {
+      const updated = prev.map((n) =>
+        n.id === id ? { ...n, ...updates, dueDate: updates.dueDate === null ? undefined : (updates.dueDate || n.dueDate) } : n
+      );
+      saveNotes(updated);
+      return updated;
+    });
+  }, []);
+
   const toggleComplete = useCallback(async (id: string) => {
     setNotes((prev) => {
       const note = prev.find((n) => n.id === id);
@@ -159,7 +178,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
 
   return (
     <NotesContext.Provider
-      value={{ notes, loading, addNote, toggleComplete, deleteNote, refreshNotes, archiveNote, unarchiveNote, updateNoteTags }}
+      value={{ notes, loading, addNote, toggleComplete, deleteNote, refreshNotes, archiveNote, unarchiveNote, updateNoteTags, updateNote }}
     >
       {children}
     </NotesContext.Provider>
