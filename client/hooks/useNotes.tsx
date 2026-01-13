@@ -11,6 +11,8 @@ export interface Note {
   entities?: string[];
   completed: boolean;
   createdAt: string;
+  tags: string[];
+  archivedAt?: string;
 }
 
 interface NoteInput {
@@ -19,6 +21,7 @@ interface NoteInput {
   category: string;
   dueDate?: string;
   entities?: string[];
+  tags?: string[];
 }
 
 interface NotesContextType {
@@ -28,6 +31,9 @@ interface NotesContextType {
   toggleComplete: (id: string) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
   refreshNotes: () => Promise<void>;
+  archiveNote: (id: string) => Promise<void>;
+  unarchiveNote: (id: string) => Promise<void>;
+  updateNoteTags: (id: string, tags: string[]) => Promise<void>;
 }
 
 const NotesContext = createContext<NotesContextType | undefined>(undefined);
@@ -78,6 +84,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
       entities: input.entities,
       completed: false,
       createdAt: new Date().toISOString(),
+      tags: input.tags || [],
     };
 
     setNotes((prev) => {
@@ -88,6 +95,36 @@ export function NotesProvider({ children }: { children: ReactNode }) {
 
     scheduleNoteReminder(newNote);
   }, [scheduleNoteReminder]);
+
+  const archiveNote = useCallback(async (id: string) => {
+    setNotes((prev) => {
+      const updated = prev.map((n) =>
+        n.id === id ? { ...n, archivedAt: new Date().toISOString() } : n
+      );
+      saveNotes(updated);
+      return updated;
+    });
+  }, []);
+
+  const unarchiveNote = useCallback(async (id: string) => {
+    setNotes((prev) => {
+      const updated = prev.map((n) =>
+        n.id === id ? { ...n, archivedAt: undefined } : n
+      );
+      saveNotes(updated);
+      return updated;
+    });
+  }, []);
+
+  const updateNoteTags = useCallback(async (id: string, tags: string[]) => {
+    setNotes((prev) => {
+      const updated = prev.map((n) =>
+        n.id === id ? { ...n, tags } : n
+      );
+      saveNotes(updated);
+      return updated;
+    });
+  }, []);
 
   const toggleComplete = useCallback(async (id: string) => {
     setNotes((prev) => {
@@ -122,7 +159,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
 
   return (
     <NotesContext.Provider
-      value={{ notes, loading, addNote, toggleComplete, deleteNote, refreshNotes }}
+      value={{ notes, loading, addNote, toggleComplete, deleteNote, refreshNotes, archiveNote, unarchiveNote, updateNoteTags }}
     >
       {children}
     </NotesContext.Provider>

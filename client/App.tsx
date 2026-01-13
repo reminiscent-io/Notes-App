@@ -13,6 +13,7 @@ import { queryClient } from "@/lib/query-client";
 import RootStackNavigator, { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NotesProvider } from "@/hooks/useNotes";
+import { CustomSectionsProvider } from "@/hooks/useCustomSections";
 
 export default function App() {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
@@ -34,16 +35,18 @@ export default function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <NotesProvider>
-          <SafeAreaProvider>
-            <GestureHandlerRootView style={styles.root}>
-              <KeyboardProvider>
-                <NavigationContainer ref={navigationRef}>
-                  <RootStackNavigator />
-                </NavigationContainer>
-                <StatusBar style="auto" />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </SafeAreaProvider>
+          <CustomSectionsProvider>
+            <SafeAreaProvider>
+              <GestureHandlerRootView style={styles.root}>
+                <KeyboardProvider>
+                  <NavigationContainer ref={navigationRef}>
+                    <RootStackNavigator />
+                  </NavigationContainer>
+                  <StatusBar style="auto" />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </SafeAreaProvider>
+          </CustomSectionsProvider>
         </NotesProvider>
       </QueryClientProvider>
     </ErrorBoundary>
