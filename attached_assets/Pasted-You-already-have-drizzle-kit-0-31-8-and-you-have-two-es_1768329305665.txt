@@ -1,0 +1,109 @@
+You already have **drizzle-kit 0.31.8**, and you have **two esbuild versions installed**:
+
+* `esbuild@0.18.20` comes from `@esbuild-kit/core-utils@3.3.2` (via `@esbuild-kit/esm-loader@2.6.5`)
+* `esbuild@0.25.12` is installed directly under drizzle-kit and also used via `esbuild-register`
+* `esbuild@0.27.0` is used by `tsx`
+
+Your audit complaint is specifically about **esbuild <= 0.24.2**, so the vulnerable one in your tree is **0.18.20**.
+
+### What to do (cleanest fix)
+
+Fix the transitive dependency so **@esbuild-kit/core-utils** stops pulling `esbuild@0.18.x`.
+
+#### Option 1 (best): Override esbuild globally via npm overrides
+
+This usually works well because esbuild is pretty compatible across minor bumps, and it eliminates the vulnerable copy.
+
+1. Edit `package.json` and add:
+
+```json
+{
+  "overrides": {
+    "esbuild": "^0.27.0"
+  }
+}
+```
+
+2. Reinstall clean:
+
+```bash
+rm -rf node_modules package-lock.json
+npm install
+npm audit
+npm ls esbuild
+```
+
+**Expected result**
+
+* `npm ls esbuild` should show only non-vulnerable versions (>= 0.24.3), ideally a single version.
+
+**Where I’m less confident**
+
+* Some tooling chains are picky about esbuild major/minor. If something breaks, drop the override to `^0.25.12` instead (since you already have it working in-tree).
+
+#### Option 2: Target the offender directly (more precise)
+
+Instead of overriding all esbuild uses, override only the problematic subtree:
+
+```json
+{
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.12"
+    }
+  }
+}
+```
+
+Then:
+
+```bash
+rm -rf node_modules package-lock.json
+npm install
+npm audit
+npm ls esbuild
+```
+
+This reduces the chance of surprising other tools.
+
+---
+
+## Why `npm audit fix --force` was misleading in your earlier output
+
+Your audit output suggested it would install `drizzle-kit@0.18.1`, but your actual tree shows you’re on **0.31.8**. That mismatch usually happens when:
+
+* the audit output was generated against a different lockfile state, or
+* npm’s “fix available” logic is pointing at an older resolution path that doesn’t reflect your current dependency graph.
+
+Given your current graph, you do **not** need to downgrade drizzle-kit. You just need to eliminate `esbuild@0.18.20`.
+
+---
+
+## Validate the fix
+
+After overrides and reinstall, confirm:
+
+```bash
+npm audit
+npm ls esbuild
+```
+
+You want to see **no esbuild <= 0.24.2** anywhere.
+
+---
+
+## If you want the lowest-drama single command approach
+
+Try this first (no lockfile wipe):
+
+```bash
+npm pkg set overrides.esbuild="^0.25.12"
+npm install
+npm audit
+```
+
+If it doesn’t remove `0.18.20`, then do the clean reinstall steps above.
+
+---
+
+If you paste the new `npm ls esbuild` after adding the override, I’ll tell you immediately whether you’ve fully removed the vulnerable copy or if one subtree is still pinned.
