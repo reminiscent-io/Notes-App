@@ -13,6 +13,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -42,6 +43,11 @@ export default function EditNoteModal() {
   const [title, setTitle] = useState(note.title);
   const [rawText, setRawText] = useState(note.rawText);
   const [category, setCategory] = useState<Note["category"]>(note.category);
+  const [dueDate, setDueDate] = useState<Date | null>(
+    note.dueDate ? new Date(note.dueDate) : null
+  );
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   const handleSave = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -49,6 +55,7 @@ export default function EditNoteModal() {
       title: title.trim() || note.title,
       rawText: rawText.trim() || note.rawText,
       category,
+      dueDate: dueDate ? dueDate.toISOString() : null,
     });
     navigation.goBack();
   };
@@ -61,6 +68,57 @@ export default function EditNoteModal() {
 
   const handleClose = () => {
     navigation.goBack();
+  };
+
+  const handleDateChange = (_event: any, selectedDate?: Date) => {
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      const newDate = dueDate ? new Date(dueDate) : new Date();
+      newDate.setFullYear(selectedDate.getFullYear());
+      newDate.setMonth(selectedDate.getMonth());
+      newDate.setDate(selectedDate.getDate());
+      setDueDate(newDate);
+      if (Platform.OS === "android") {
+        setShowTimePicker(true);
+      }
+    }
+  };
+
+  const handleTimeChange = (_event: any, selectedTime?: Date) => {
+    if (Platform.OS === "android") {
+      setShowTimePicker(false);
+    }
+    if (selectedTime) {
+      const newDate = dueDate ? new Date(dueDate) : new Date();
+      newDate.setHours(selectedTime.getHours());
+      newDate.setMinutes(selectedTime.getMinutes());
+      setDueDate(newDate);
+    }
+  };
+
+  const handleClearDate = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDueDate(null);
+  };
+
+  const handleSetDate = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!dueDate) {
+      setDueDate(new Date());
+    }
+    setShowDatePicker(true);
+  };
+
+  const formatDateTime = (date: Date) => {
+    return date.toLocaleString([], {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
   };
 
   return (
@@ -173,6 +231,82 @@ export default function EditNoteModal() {
               </Pressable>
             ))}
           </View>
+
+          <ThemedText type="caption" style={[styles.label, { color: theme.textSecondary }]}>
+            Due Date & Time
+          </ThemedText>
+          <View style={styles.dateTimeRow}>
+            <Pressable
+              onPress={handleSetDate}
+              style={[
+                styles.dateButton,
+                {
+                  backgroundColor: theme.backgroundSecondary,
+                  borderColor: theme.textTertiary,
+                  flex: 1,
+                },
+              ]}
+            >
+              <Feather name="clock" size={16} color={theme.textSecondary} />
+              <ThemedText
+                type="body"
+                style={{ color: dueDate ? theme.text : theme.textTertiary, marginLeft: 8 }}
+              >
+                {dueDate ? formatDateTime(dueDate) : "No due date"}
+              </ThemedText>
+            </Pressable>
+            {dueDate ? (
+              <Pressable
+                onPress={handleClearDate}
+                style={[styles.clearButton, { backgroundColor: theme.backgroundSecondary }]}
+              >
+                <Feather name="x" size={18} color={theme.textSecondary} />
+              </Pressable>
+            ) : null}
+          </View>
+
+          {Platform.OS === "ios" && (showDatePicker || showTimePicker) ? (
+            <View style={styles.pickerContainer}>
+              <DateTimePicker
+                value={dueDate || new Date()}
+                mode="datetime"
+                display="spinner"
+                onChange={(_e: any, date?: Date) => {
+                  if (date) setDueDate(date);
+                }}
+                textColor={theme.text}
+              />
+              <Pressable
+                onPress={() => {
+                  setShowDatePicker(false);
+                  setShowTimePicker(false);
+                }}
+                style={[styles.doneButton, { backgroundColor: Colors.light.accent }]}
+              >
+                <ThemedText type="body" style={{ color: "#FFFFFF" }}>
+                  Done
+                </ThemedText>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {Platform.OS === "android" && showDatePicker ? (
+            <DateTimePicker
+              value={dueDate || new Date()}
+              mode="date"
+              display="default"
+              onChange={handleDateChange}
+            />
+          ) : null}
+
+          {Platform.OS === "android" && showTimePicker ? (
+            <DateTimePicker
+              value={dueDate || new Date()}
+              mode="time"
+              display="default"
+              onChange={handleTimeChange}
+            />
+          ) : null}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -209,7 +343,7 @@ const styles = StyleSheet.create({
   modal: {
     marginHorizontal: Spacing.md,
     borderRadius: BorderRadius.lg,
-    maxHeight: "80%",
+    maxHeight: "85%",
     overflow: "hidden",
   },
   header: {
@@ -250,6 +384,36 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
+  },
+  dateTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  dateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+  },
+  clearButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pickerContainer: {
+    marginTop: Spacing.sm,
+    alignItems: "center",
+  },
+  doneButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
   },
   footer: {
     flexDirection: "row",
