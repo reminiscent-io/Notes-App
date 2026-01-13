@@ -134,15 +134,27 @@ Categories:
 
 ${notesContext || "No notes yet."}
 
-Answer the user's question conversationally and concisely. If they ask about what's due today/tomorrow, list relevant items. If they ask about a person or topic, find related notes.
+You can:
+1. Answer questions about their notes conversationally
+2. Complete/check off notes when asked (e.g., "mark the grocery list as done", "check off my meeting")
+3. Delete notes when asked (e.g., "delete my shopping list", "remove the reminder about...")
 
-Also return the IDs of any notes that match the query.
+Detect the user's intent:
+- If they want to complete/check off notes: action = "complete"
+- If they want to delete notes: action = "delete"
+- If they're just asking questions: action = null
 
 Respond with JSON:
 {
-  "response": "Your conversational answer",
-  "matchedNoteIds": ["id1", "id2"]
-}`,
+  "response": "Your conversational answer confirming what you did or answering their question",
+  "matchedNoteIds": ["id1", "id2"],
+  "action": "complete" | "delete" | null
+}
+
+Examples:
+- "Mark my grocery list as done" → action: "complete", find the shopping note
+- "Delete all my ideas" → action: "delete", find all idea notes
+- "What do I need to do today?" → action: null, find today notes`,
           },
           {
             role: "user",
@@ -164,6 +176,7 @@ Respond with JSON:
         query,
         response: parsed.response || "I couldn't find anything related to that.",
         matchedNotes,
+        action: parsed.action || null,
       });
     } catch (error: any) {
       console.error("Query error:", error);

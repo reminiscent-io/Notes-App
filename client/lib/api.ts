@@ -14,6 +14,7 @@ interface QueryResult {
   query: string;
   response: string;
   matchedNotes?: Note[];
+  action?: "complete" | "delete" | null;
 }
 
 export async function transcribeAndProcess(audioUri: string): Promise<TranscribeResult> {

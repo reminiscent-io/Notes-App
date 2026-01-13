@@ -136,6 +136,17 @@ export default function QueryModal() {
           setQueryText(result.query);
           setResponse(result.response);
           setMatchedNotes(result.matchedNotes || []);
+
+          if (result.action && result.matchedNotes && result.matchedNotes.length > 0) {
+            for (const note of result.matchedNotes) {
+              if (result.action === "complete") {
+                await toggleComplete(note.id);
+              } else if (result.action === "delete") {
+                await deleteNote(note.id);
+              }
+            }
+          }
+
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (error: any) {
           console.error("Failed to process query:", error);
