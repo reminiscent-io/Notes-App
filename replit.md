@@ -52,12 +52,20 @@ Preferred communication style: Simple, everyday language.
 - **Hooks**: `useNotifications` manages scheduling, cancellation, and permissions
 - Reminders are automatically cancelled when notes are completed or deleted
 
+### Custom Sections (Smart Folders)
+- **Creation**: Voice command "Create a work section" or "Create a section called Family for birthdays, relatives"
+- **Auto-tagging**: Notes automatically tagged to matching sections based on keywords during transcription
+- **Storage**: Sections stored in AsyncStorage with key "@voice_notes_sections"
+- **Schema**: `{ id, name, icon, keywords[], createdAt }`
+- **Archiving**: Voice command "Archive my completed work tasks" hides notes from main view while keeping them searchable
+- **Hooks**: `useCustomSections` for section CRUD, notes have `tags[]` and `archivedAt` fields
+
 ### Data Flow
-1. User records voice → Audio file sent to `/api/transcribe`
+1. User records voice → Audio file sent to `/api/transcribe` with custom sections
 2. OpenAI Whisper transcribes audio → text
-3. GPT-5 extracts structured data (title, category, due date, entities)
-4. Client stores note in AsyncStorage
-5. UI updates with categorized note card
+3. GPT-5 extracts structured data (title, category, due date, entities, tags)
+4. Client stores note in AsyncStorage with auto-assigned tags
+5. UI updates with categorized note card, appears in matching custom sections
 
 ### Database Schema
 - Uses Drizzle ORM with PostgreSQL dialect
