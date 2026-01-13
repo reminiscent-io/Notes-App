@@ -5,14 +5,27 @@ import OpenAI from "openai";
 import * as fs from "fs";
 import * as path from "path";
 
+// Lazy initialization of OpenAI client
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openai: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (!openai) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY is not set. Please add your OpenAI API key.");
+    }
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openai;
+}
 
 const upload = multer({ dest: "uploads/" });
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/transcribe", upload.single("audio"), async (req, res) => {
     try {
+      const client = getOpenAIClient();
+      
       if (!req.file) {
         return res.status(400).json({ error: "No audio file provided" });
       }
@@ -20,14 +33,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const audioPath = req.file.path;
       const audioStream = fs.createReadStream(audioPath);
 
-      const transcription = await openai.audio.transcriptions.create({
+      const transcription = await client.audio.transcriptions.create({
         file: audioStream,
         model: "whisper-1",
       });
 
       const rawText = transcription.text;
 
-      const understanding = await openai.chat.completions.create({
+      const understanding = await client.chat.completions.create({
         model: "gpt-5",
         messages: [
           {
@@ -87,6 +100,8 @@ Categories:
 
   app.post("/api/query", upload.single("audio"), async (req, res) => {
     try {
+      const client = getOpenAIClient();
+      
       if (!req.file) {
         return res.status(400).json({ error: "No audio file provided" });
       }
@@ -96,7 +111,7 @@ Categories:
       const audioPath = req.file.path;
       const audioStream = fs.createReadStream(audioPath);
 
-      const transcription = await openai.audio.transcriptions.create({
+      const transcription = await client.audio.transcriptions.create({
         file: audioStream,
         model: "whisper-1",
       });
@@ -110,7 +125,7 @@ Categories:
         )
         .join("\n");
 
-      const response = await openai.chat.completions.create({
+      const response = await client.chat.completions.create({
         model: "gpt-5",
         messages: [
           {
