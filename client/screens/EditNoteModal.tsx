@@ -86,9 +86,9 @@ export default function EditNoteModal() {
         ]}
       >
         <View style={styles.header}>
-          <ThemedText type="subtitle">Edit Note</ThemedText>
+          <ThemedText type="title3">Edit Note</ThemedText>
           <Pressable onPress={handleClose} hitSlop={16}>
-            <Feather name="x" size={24} color={theme.textPrimary} />
+            <Feather name="x" size={24} color={theme.text} />
           </Pressable>
         </View>
 
@@ -100,9 +100,9 @@ export default function EditNoteModal() {
             style={[
               styles.input,
               {
-                backgroundColor: theme.backgroundSubtle,
-                color: theme.textPrimary,
-                borderColor: theme.border,
+                backgroundColor: theme.backgroundSecondary,
+                color: theme.text,
+                borderColor: theme.textTertiary,
               },
             ]}
             value={title}
@@ -120,9 +120,9 @@ export default function EditNoteModal() {
               styles.input,
               styles.textArea,
               {
-                backgroundColor: theme.backgroundSubtle,
-                color: theme.textPrimary,
-                borderColor: theme.border,
+                backgroundColor: theme.backgroundSecondary,
+                color: theme.text,
+                borderColor: theme.textTertiary,
               },
             ]}
             value={rawText}
@@ -148,11 +148,11 @@ export default function EditNoteModal() {
                     backgroundColor:
                       category === cat.value
                         ? Colors.light.accent
-                        : theme.backgroundSubtle,
+                        : theme.backgroundSecondary,
                     borderColor:
                       category === cat.value
                         ? Colors.light.accent
-                        : theme.border,
+                        : theme.textTertiary,
                   },
                 ]}
               >
