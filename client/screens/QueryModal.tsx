@@ -7,11 +7,13 @@ import {
   ActivityIndicator,
   Platform,
   Linking,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as FileSystem from "expo-file-system/legacy";
 import Animated, {
   useAnimatedStyle,
   withRepeat,
@@ -146,45 +148,71 @@ export default function QueryModal() {
   };
 
   const stopRecording = async () => {
+    let persistedUri: string | null = null;
+    
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await audioRecorder.stop();
       setIsRecording(false);
       setIsProcessing(true);
 
-      const uri = audioRecorder.uri;
-      if (uri) {
-        try {
-          const result = await queryNotes(uri, notes, sections);
-          setQueryText(result.query);
-          setResponse(result.response);
-          setMatchedNotes(result.matchedNotes || []);
+      const cacheUri = audioRecorder.uri;
+      if (!cacheUri) {
+        setErrorMessage("Recording failed. Please try again.");
+        setIsProcessing(false);
+        return;
+      }
 
-          if (result.action === "create_section" && result.sectionName) {
-            await addSection(
-              result.sectionName,
-              result.sectionIcon || "folder",
-              result.sectionKeywords || []
-            );
-          } else if (result.action && result.matchedNotes && result.matchedNotes.length > 0) {
-            for (const note of result.matchedNotes) {
-              if (result.action === "complete" && !note.completed) {
-                await toggleComplete(note.id);
-              } else if (result.action === "delete") {
-                await deleteNote(note.id);
-              } else if (result.action === "archive" && !note.archivedAt) {
-                await archiveNote(note.id);
-                await cancelNoteReminder(note.id);
-              }
+      const cacheInfo = await FileSystem.getInfoAsync(cacheUri);
+      if (!cacheInfo.exists) {
+        setErrorMessage("Recording file not found. Please try again.");
+        setIsProcessing(false);
+        return;
+      }
+
+      const recordingsDir = FileSystem.documentDirectory + "recordings/";
+      await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
+      
+      persistedUri = recordingsDir + `query_${Date.now()}.m4a`;
+      await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
+
+      const persistedInfo = await FileSystem.getInfoAsync(persistedUri);
+      if (!persistedInfo.exists) {
+        setErrorMessage("Failed to save recording. Please try again.");
+        setIsProcessing(false);
+        return;
+      }
+
+      try {
+        const result = await queryNotes(persistedUri, notes, sections);
+        setQueryText(result.query);
+        setResponse(result.response);
+        setMatchedNotes(result.matchedNotes || []);
+
+        if (result.action === "create_section" && result.sectionName) {
+          await addSection(
+            result.sectionName,
+            result.sectionIcon || "folder",
+            result.sectionKeywords || []
+          );
+        } else if (result.action && result.matchedNotes && result.matchedNotes.length > 0) {
+          for (const note of result.matchedNotes) {
+            if (result.action === "complete" && !note.completed) {
+              await toggleComplete(note.id);
+            } else if (result.action === "delete") {
+              await deleteNote(note.id);
+            } else if (result.action === "archive" && !note.archivedAt) {
+              await archiveNote(note.id);
+              await cancelNoteReminder(note.id);
             }
           }
-
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } catch (error: any) {
-          console.error("Failed to process query:", error);
-          setErrorMessage(error.message || "Sorry, I couldn't process that. Please try again.");
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         }
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (error: any) {
+        console.error("Failed to process query:", error);
+        setErrorMessage(error.message || "Sorry, I couldn't process that. Please try again.");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
 
       setIsProcessing(false);
@@ -192,6 +220,12 @@ export default function QueryModal() {
       console.error("Failed to stop recording:", error);
       setErrorMessage("Could not stop recording. Please try again.");
       setIsProcessing(false);
+    } finally {
+      if (persistedUri) {
+        try {
+          await FileSystem.deleteAsync(persistedUri, { idempotent: true });
+        } catch {}
+      }
     }
   };
 

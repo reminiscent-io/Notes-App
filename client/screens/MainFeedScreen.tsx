@@ -14,6 +14,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as FileSystem from "expo-file-system/legacy";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { useAudioRecorder, AudioModule, setAudioModeAsync, RecordingPresets } from "expo-audio";
 
@@ -111,40 +112,70 @@ export default function MainFeedScreen() {
   };
 
   const stopRecording = async () => {
+    let persistedUri: string | null = null;
+    
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await audioRecorder.stop();
       setIsRecording(false);
       setIsProcessing(true);
 
-      const uri = audioRecorder.uri;
-      if (uri) {
-        try {
-          const result = await transcribeAndProcess(uri, sections);
-
-          await addNote({
-            rawText: result.rawText,
-            title: result.title,
-            category: result.category,
-            dueDate: result.dueDate,
-            entities: result.entities,
-            tags: result.tags,
-          });
-
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } catch (error: any) {
-          console.error("Failed to process recording:", error);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert("Error", "Could not process recording. Please try again.");
-        }
-      } else {
+      const cacheUri = audioRecorder.uri;
+      if (!cacheUri) {
         Alert.alert("Error", "Recording failed. Please try again.");
+        setIsProcessing(false);
+        return;
+      }
+
+      const cacheInfo = await FileSystem.getInfoAsync(cacheUri);
+      if (!cacheInfo.exists) {
+        Alert.alert("Error", "Recording file not found. Please try again.");
+        setIsProcessing(false);
+        return;
+      }
+
+      const recordingsDir = FileSystem.documentDirectory + "recordings/";
+      await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
+      
+      persistedUri = recordingsDir + `recording_${Date.now()}.m4a`;
+      await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
+
+      const persistedInfo = await FileSystem.getInfoAsync(persistedUri);
+      if (!persistedInfo.exists) {
+        Alert.alert("Error", "Failed to save recording. Please try again.");
+        setIsProcessing(false);
+        return;
+      }
+
+      try {
+        const result = await transcribeAndProcess(persistedUri, sections);
+
+        await addNote({
+          rawText: result.rawText,
+          title: result.title,
+          category: result.category,
+          dueDate: result.dueDate,
+          entities: result.entities,
+          tags: result.tags,
+        });
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (error: any) {
+        console.error("Failed to process recording:", error);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("Error", "Could not process recording. Please try again.");
       }
 
       setIsProcessing(false);
     } catch (error) {
       console.error("Failed to stop recording:", error);
       setIsProcessing(false);
+    } finally {
+      if (persistedUri) {
+        try {
+          await FileSystem.deleteAsync(persistedUri, { idempotent: true });
+        } catch {}
+      }
     }
   };
 

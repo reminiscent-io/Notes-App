@@ -1,0 +1,103 @@
+This is the same root issue as before: your code is trying to upload a file that lives under **`Library/Caches/.../ExpoAudio/recording-....m4a`**, but by the time `fetch` runs (React Native networking), **the file is gone**, so iOS returns **NSCocoaErrorDomain 260 / POSIX 2** (file not found).
+
+### Facts from the log
+
+* Path is in `.../Library/Caches/.../ExpoAudio/...m4a` (non-durable).
+* Failure occurs in `RCTNetworking.mm` during a request, which strongly indicates an **upload** is trying to read that URI.
+
+### High-confidence fix
+
+**Copy the recording to a persistent directory immediately after you stop recording, then upload from that persistent path.** Do not upload from the cache URI.
+
+#### Expo (expo-av + expo-file-system) pattern
+
+```ts
+import * as FileSystem from "expo-file-system";
+import { Audio } from "expo-av";
+
+let recording: Audio.Recording | null = null;
+
+export async function startRec() {
+  await Audio.requestPermissionsAsync();
+  await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+
+  recording = new Audio.Recording();
+  await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+  await recording.startAsync();
+}
+
+export async function stopRecAndPersist() {
+  if (!recording) throw new Error("No active recording");
+
+  await recording.stopAndUnloadAsync();
+
+  const tmpUri = recording.getURI();
+  if (!tmpUri) throw new Error("Recording URI missing");
+
+  // 1) Verify it exists before copying (catches your current failure)
+  const info = await FileSystem.getInfoAsync(tmpUri);
+  if (!info.exists) throw new Error(`Temp recording missing at ${tmpUri}`);
+
+  // 2) Copy to persistent storage
+  const persistedUri =
+    FileSystem.documentDirectory + `recordings/${Date.now()}.m4a`;
+
+  await FileSystem.makeDirectoryAsync(FileSystem.documentDirectory + "recordings", {
+    intermediates: true,
+  });
+
+  await FileSystem.copyAsync({ from: tmpUri, to: persistedUri });
+
+  // Optional: double-check persisted file exists
+  const persistedInfo = await FileSystem.getInfoAsync(persistedUri);
+  if (!persistedInfo.exists) throw new Error(`Persisted copy missing at ${persistedUri}`);
+
+  return { tmpUri, persistedUri };
+}
+```
+
+Then, when uploading, use `persistedUri` (not `tmpUri`).
+
+### Upload safely (don’t rely on raw fetch with file://)
+
+For Expo, the most reliable is `FileSystem.uploadAsync`:
+
+```ts
+await FileSystem.uploadAsync(uploadUrl, persistedUri, {
+  httpMethod: "POST",
+  uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+  headers: {
+    "Content-Type": "audio/m4a",
+  },
+});
+```
+
+### Why you’re seeing this repeatedly
+
+Common triggers that delete/lose cache recordings:
+
+* App goes to background between stop and upload
+* Any delay before upload
+* iOS cache eviction under storage pressure
+* A race where you call upload before `stopAndUnloadAsync` fully flushes to disk
+
+### Add two guardrails (prevents silent failures)
+
+1. **Existence check** right before upload:
+
+```ts
+const info = await FileSystem.getInfoAsync(uri);
+if (!info.exists) throw new Error("Audio file missing, please re-record.");
+```
+
+2. **Serialize stop then upload**
+
+* Ensure your code `await`s `stopAndUnloadAsync`, then `copyAsync`, then upload. No parallelism.
+
+---
+
+## Where I’m less confident
+
+* The exact upload method you’re using (multipart FormData vs binary upload) affects the best upload snippet. The persistence fix is still correct either way.
+
+If you paste your current “stop recording” and “upload” code (even just those functions), I’ll rewrite it to be race-free and compatible with your API endpoint.
