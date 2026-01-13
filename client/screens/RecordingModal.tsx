@@ -133,8 +133,14 @@ export default function RecordingModal() {
 
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      // Immediately switch to processing state for instant UI feedback
       setIsRecording(false);
       setIsProcessing(true);
+      
+      // Let React render the processing indicator before doing heavy work
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
       await audioRecorder.stop();
 
       const cacheUri = audioRecorder.uri;
