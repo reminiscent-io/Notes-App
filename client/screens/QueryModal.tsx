@@ -30,6 +30,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
 import { useNotes, Note } from "@/hooks/useNotes";
 import { useCustomSections } from "@/hooks/useCustomSections";
+import { useNotifications } from "@/hooks/useNotifications";
 import { queryNotes } from "@/lib/api";
 import { NoteCard } from "@/components/NoteCard";
 
@@ -46,6 +47,7 @@ export default function QueryModal() {
   const { theme, isDark } = useTheme();
   const { notes, toggleComplete, deleteNote, archiveNote } = useNotes();
   const { sections, addSection } = useCustomSections();
+  const { cancelNoteReminder } = useNotifications();
 
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -153,6 +155,7 @@ export default function QueryModal() {
                 await deleteNote(note.id);
               } else if (result.action === "archive" && !note.archivedAt) {
                 await archiveNote(note.id);
+                await cancelNoteReminder(note.id);
               }
             }
           }
