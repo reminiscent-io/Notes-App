@@ -157,30 +157,28 @@ export default function QueryModal() {
       setIsProcessing(true);
 
       const cacheUri = audioRecorder.uri;
+      console.log("Query recording stopped, URI:", cacheUri);
+      
       if (!cacheUri) {
         setErrorMessage("Recording failed. Please try again.");
         setIsProcessing(false);
         return;
       }
 
-      const cacheInfo = await FileSystem.getInfoAsync(cacheUri);
-      if (!cacheInfo.exists) {
-        setErrorMessage("Recording file not found. Please try again.");
-        setIsProcessing(false);
-        return;
-      }
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       const recordingsDir = FileSystem.documentDirectory + "recordings/";
       await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
       
       persistedUri = recordingsDir + `query_${Date.now()}.m4a`;
-      await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
-
-      const persistedInfo = await FileSystem.getInfoAsync(persistedUri);
-      if (!persistedInfo.exists) {
-        setErrorMessage("Failed to save recording. Please try again.");
-        setIsProcessing(false);
-        return;
+      
+      try {
+        await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
+        console.log("Copied to:", persistedUri);
+      } catch (copyError: any) {
+        console.error("Copy failed:", copyError);
+        console.log("Trying direct upload from cache URI...");
+        persistedUri = cacheUri;
       }
 
       try {
@@ -221,7 +219,7 @@ export default function QueryModal() {
       setErrorMessage("Could not stop recording. Please try again.");
       setIsProcessing(false);
     } finally {
-      if (persistedUri) {
+      if (persistedUri && persistedUri.includes("/recordings/")) {
         try {
           await FileSystem.deleteAsync(persistedUri, { idempotent: true });
         } catch {}

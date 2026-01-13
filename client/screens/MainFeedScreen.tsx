@@ -121,30 +121,28 @@ export default function MainFeedScreen() {
       setIsProcessing(true);
 
       const cacheUri = audioRecorder.uri;
+      console.log("Recording stopped, URI:", cacheUri);
+      
       if (!cacheUri) {
         Alert.alert("Error", "Recording failed. Please try again.");
         setIsProcessing(false);
         return;
       }
 
-      const cacheInfo = await FileSystem.getInfoAsync(cacheUri);
-      if (!cacheInfo.exists) {
-        Alert.alert("Error", "Recording file not found. Please try again.");
-        setIsProcessing(false);
-        return;
-      }
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       const recordingsDir = FileSystem.documentDirectory + "recordings/";
       await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
       
       persistedUri = recordingsDir + `recording_${Date.now()}.m4a`;
-      await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
-
-      const persistedInfo = await FileSystem.getInfoAsync(persistedUri);
-      if (!persistedInfo.exists) {
-        Alert.alert("Error", "Failed to save recording. Please try again.");
-        setIsProcessing(false);
-        return;
+      
+      try {
+        await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
+        console.log("Copied to:", persistedUri);
+      } catch (copyError: any) {
+        console.error("Copy failed:", copyError);
+        console.log("Trying direct upload from cache URI...");
+        persistedUri = cacheUri;
       }
 
       try {
@@ -169,9 +167,10 @@ export default function MainFeedScreen() {
       setIsProcessing(false);
     } catch (error) {
       console.error("Failed to stop recording:", error);
+      Alert.alert("Error", "Recording failed. Please try again.");
       setIsProcessing(false);
     } finally {
-      if (persistedUri) {
+      if (persistedUri && persistedUri.includes("/recordings/")) {
         try {
           await FileSystem.deleteAsync(persistedUri, { idempotent: true });
         } catch {}
