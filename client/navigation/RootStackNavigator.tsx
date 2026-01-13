@@ -4,6 +4,7 @@ import MainFeedScreen from "@/screens/MainFeedScreen";
 import RecordingModal from "@/screens/RecordingModal";
 import QueryModal from "@/screens/QueryModal";
 import SettingsScreen from "@/screens/SettingsScreen";
+import ArchivedNotesScreen from "@/screens/ArchivedNotesScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { HeaderTitle } from "@/components/HeaderTitle";
 
@@ -12,6 +13,7 @@ export type RootStackParamList = {
   Recording: undefined;
   Query: undefined;
   Settings: undefined;
+  ArchivedNotes: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -51,6 +53,13 @@ export default function RootStackNavigator() {
         component={SettingsScreen}
         options={{
           headerTitle: "Settings",
+        }}
+      />
+      <Stack.Screen
+        name="ArchivedNotes"
+        component={ArchivedNotesScreen}
+        options={{
+          headerTitle: "Archived Notes",
         }}
       />
     </Stack.Navigator>

@@ -8,6 +8,8 @@ import {
 } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInUp } from "react-native-reanimated";
@@ -18,10 +20,14 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { useCustomSections, CustomSection } from "@/hooks/useCustomSections";
 import { useNotes } from "@/hooks/useNotes";
 import { SectionHeader } from "@/components/SectionHeader";
+import { RootStackParamList } from "@/navigation/RootStackNavigator";
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function SettingsScreen() {
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
   const { sections, deleteSection } = useCustomSections();
   const { notes } = useNotes();
@@ -50,12 +56,8 @@ export default function SettingsScreen() {
 
   const handleArchivedPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert(
-      "Archived Notes",
-      `You have ${archivedCount} archived note${archivedCount !== 1 ? "s" : ""}`,
-      [{ text: "OK" }]
-    );
-  }, [archivedCount]);
+    navigation.navigate("ArchivedNotes");
+  }, [navigation]);
 
   const renderSectionItem = (section: CustomSection, index: number) => (
     <Animated.View

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useLayoutEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -8,7 +8,7 @@ import {
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
+import { useHeaderHeight, HeaderButton } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
@@ -81,6 +81,20 @@ export default function MainFeedScreen() {
   const handleMicPressOut = () => {
     micScale.value = withSpring(1, { damping: 15, stiffness: 300 });
   };
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <HeaderButton
+          onPress={() => navigation.navigate("Settings")}
+          pressColor="transparent"
+          pressOpacity={0.7}
+        >
+          <Feather name="settings" size={22} color={theme.text} />
+        </HeaderButton>
+      ),
+    });
+  }, [navigation, theme]);
 
   const renderSection = (
     title: string,
