@@ -131,19 +131,8 @@ export default function MainFeedScreen() {
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      const recordingsDir = FileSystem.documentDirectory + "recordings/";
-      await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
-      
-      persistedUri = recordingsDir + `recording_${Date.now()}.m4a`;
-      
-      try {
-        await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
-        console.log("Copied to:", persistedUri);
-      } catch (copyError: any) {
-        console.error("Copy failed:", copyError);
-        console.log("Trying direct upload from cache URI...");
-        persistedUri = cacheUri;
-      }
+      // Use cache URI directly - more reliable across platforms
+      persistedUri = cacheUri;
 
       try {
         const result = await transcribeAndProcess(persistedUri, sections);
@@ -170,7 +159,8 @@ export default function MainFeedScreen() {
       Alert.alert("Error", "Recording failed. Please try again.");
       setIsProcessing(false);
     } finally {
-      if (persistedUri && persistedUri.includes("/recordings/")) {
+      // Clean up cache file after processing
+      if (persistedUri) {
         try {
           await FileSystem.deleteAsync(persistedUri, { idempotent: true });
         } catch {}
