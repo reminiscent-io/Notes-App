@@ -80,15 +80,29 @@ export async function queryNotes(
 
   const url = new URL("/api/query", getApiUrl());
   
-  const response = await fetch(url.toString(), {
-    method: "POST",
-    body: formData,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  
+  try {
+    const response = await fetch(url.toString(), {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || "Failed to process query");
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || "Failed to process query");
+    }
+
+    return response.json();
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw error;
   }
-
-  return response.json();
 }
