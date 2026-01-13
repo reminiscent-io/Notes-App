@@ -161,9 +161,9 @@ export default function QueryModal() {
     
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      await audioRecorder.stop();
       setIsRecording(false);
       setIsProcessing(true);
+      await audioRecorder.stop();
 
       const cacheUri = audioRecorder.uri;
       console.log("Query recording stopped, URI:", cacheUri);

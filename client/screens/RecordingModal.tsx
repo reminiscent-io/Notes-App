@@ -133,9 +133,9 @@ export default function RecordingModal() {
 
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      await audioRecorder.stop();
       setIsRecording(false);
       setIsProcessing(true);
+      await audioRecorder.stop();
 
       const cacheUri = audioRecorder.uri;
       console.log("Recording stopped, URI:", cacheUri);
