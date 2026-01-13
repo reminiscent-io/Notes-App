@@ -28,6 +28,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
 import { useNotes } from "@/hooks/useNotes";
+import { useCustomSections } from "@/hooks/useCustomSections";
 import { transcribeAndProcess } from "@/lib/api";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -42,6 +43,7 @@ export default function RecordingModal() {
   const navigation = useNavigation();
   const { theme, isDark } = useTheme();
   const { addNote } = useNotes();
+  const { sections } = useCustomSections();
 
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -126,7 +128,7 @@ export default function RecordingModal() {
       const uri = audioRecorder.uri;
       if (uri) {
         try {
-          const result = await transcribeAndProcess(uri);
+          const result = await transcribeAndProcess(uri, sections);
           setTranscribedText(result.rawText);
           
           await addNote({
@@ -135,6 +137,7 @@ export default function RecordingModal() {
             category: result.category,
             dueDate: result.dueDate,
             entities: result.entities,
+            tags: result.tags,
           });
 
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

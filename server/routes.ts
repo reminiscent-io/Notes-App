@@ -40,6 +40,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const rawText = transcription.text;
 
+      const customSections = JSON.parse(req.body.customSections || "[]");
+      
+      const sectionsContext = customSections.length > 0
+        ? `\n\nCustom sections (auto-tag if content matches):\n${customSections.map((s: any) => `- "${s.name}": keywords = [${s.keywords.join(", ")}]`).join("\n")}`
+        : "";
+
       const understanding = await client.chat.completions.create({
         model: "gpt-5",
         messages: [
@@ -52,13 +58,16 @@ Determine:
 2. Category: "today" (due today), "tomorrow" (due tomorrow), "idea" (creative thought/project), "shopping" (items to buy), or "other"
 3. Due date if mentioned (in ISO format)
 4. Entities mentioned (names of people, places, things)
+5. Tags: Which custom sections this note belongs to (based on keywords or semantic meaning)
+${sectionsContext}
 
 Respond with JSON in this exact format:
 {
   "title": "Short descriptive title",
   "category": "today|tomorrow|idea|shopping|other",
   "dueDate": "2026-01-13T15:00:00Z" or null,
-  "entities": ["Person1", "Thing1"]
+  "entities": ["Person1", "Thing1"],
+  "tags": ["SectionName1", "SectionName2"]
 }
 
 Time references:
@@ -71,7 +80,13 @@ Categories:
 - Reminders, tasks, calls, meetings = "today" or "tomorrow" based on time
 - "Buy", "get", "pick up" items = "shopping"
 - Ideas, thoughts, concepts, app ideas = "idea"
-- General notes = "other"`,
+- General notes = "other"
+
+Tags:
+- Match notes to custom sections based on keywords or semantic similarity
+- A note can have multiple tags
+- Only use section names from the custom sections list
+- Return empty array if no sections match`,
           },
           {
             role: "user",
@@ -91,6 +106,7 @@ Categories:
         category: parsed.category || "other",
         dueDate: parsed.dueDate || null,
         entities: parsed.entities || [],
+        tags: parsed.tags || [],
       });
     } catch (error: any) {
       console.error("Transcription error:", error);
@@ -107,6 +123,7 @@ Categories:
       }
 
       const notes = JSON.parse(req.body.notes || "[]");
+      const customSections = JSON.parse(req.body.customSections || "[]");
 
       const audioPath = req.file.path;
       const audioStream = fs.createReadStream(audioPath);
@@ -121,9 +138,13 @@ Categories:
       const notesContext = notes
         .map(
           (n: any) =>
-            `- [${n.category}] ${n.title}${n.completed ? " (DONE)" : ""}${n.dueDate ? ` (Due: ${new Date(n.dueDate).toLocaleString()})` : ""}`
+            `- [ID:${n.id}] [${n.category}] ${n.title}${n.completed ? " (DONE)" : ""}${n.archivedAt ? " (ARCHIVED)" : ""}${n.tags?.length ? ` [Tags: ${n.tags.join(", ")}]` : ""}${n.dueDate ? ` (Due: ${new Date(n.dueDate).toLocaleString()})` : ""}`
         )
         .join("\n");
+
+      const sectionsContext = customSections.length > 0
+        ? `\n\nExisting custom sections: ${customSections.map((s: any) => s.name).join(", ")}`
+        : "\n\nNo custom sections yet.";
 
       const response = await client.chat.completions.create({
         model: "gpt-5",
@@ -133,28 +154,40 @@ Categories:
             content: `You are a helpful voice notes assistant. The user has these notes:
 
 ${notesContext || "No notes yet."}
+${sectionsContext}
 
 You can:
 1. Answer questions about their notes conversationally
-2. Complete/check off notes when asked (e.g., "mark the grocery list as done", "check off my meeting")
-3. Delete notes when asked (e.g., "delete my shopping list", "remove the reminder about...")
+2. Complete/check off notes when asked (e.g., "mark the grocery list as done")
+3. Delete notes when asked (e.g., "delete my shopping list")
+4. Archive notes when asked (e.g., "archive my completed work tasks")
+5. Create new sections when asked (e.g., "create a work section for meetings, deadlines, boss")
 
 Detect the user's intent:
-- If they want to complete/check off notes: action = "complete"
-- If they want to delete notes: action = "delete"
-- If they're just asking questions: action = null
+- complete: mark notes as done
+- delete: remove notes
+- archive: archive notes (hide from main view but keep)
+- create_section: create a new smart section
+
+For create_section, extract:
+- sectionName: name of the section (e.g., "Work", "Family")
+- sectionIcon: Feather icon name (e.g., "briefcase", "users", "heart", "book")
+- sectionKeywords: array of keywords that trigger auto-tagging
 
 Respond with JSON:
 {
-  "response": "Your conversational answer confirming what you did or answering their question",
+  "response": "Conversational answer",
   "matchedNoteIds": ["id1", "id2"],
-  "action": "complete" | "delete" | null
+  "action": "complete" | "delete" | "archive" | "create_section" | null,
+  "sectionName": "Work",
+  "sectionIcon": "briefcase",
+  "sectionKeywords": ["meeting", "deadline", "boss", "project"]
 }
 
 Examples:
-- "Mark my grocery list as done" → action: "complete", find the shopping note
-- "Delete all my ideas" → action: "delete", find all idea notes
-- "What do I need to do today?" → action: null, find today notes`,
+- "Create a work section" → action: "create_section", sectionName: "Work", sectionIcon: "briefcase", sectionKeywords: ["meeting", "deadline", "work", "office"]
+- "Archive my done tasks" → action: "archive", find completed notes
+- "Mark grocery list done" → action: "complete"`,
           },
           {
             role: "user",
@@ -177,6 +210,9 @@ Examples:
         response: parsed.response || "I couldn't find anything related to that.",
         matchedNotes,
         action: parsed.action || null,
+        sectionName: parsed.sectionName || null,
+        sectionIcon: parsed.sectionIcon || null,
+        sectionKeywords: parsed.sectionKeywords || [],
       });
     } catch (error: any) {
       console.error("Query error:", error);

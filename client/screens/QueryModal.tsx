@@ -29,6 +29,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
 import { useNotes, Note } from "@/hooks/useNotes";
+import { useCustomSections } from "@/hooks/useCustomSections";
 import { queryNotes } from "@/lib/api";
 import { NoteCard } from "@/components/NoteCard";
 
@@ -43,7 +44,8 @@ export default function QueryModal() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { theme, isDark } = useTheme();
-  const { notes, toggleComplete, deleteNote } = useNotes();
+  const { notes, toggleComplete, deleteNote, archiveNote } = useNotes();
+  const { sections, addSection } = useCustomSections();
 
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -132,17 +134,25 @@ export default function QueryModal() {
       const uri = audioRecorder.uri;
       if (uri) {
         try {
-          const result = await queryNotes(uri, notes);
+          const result = await queryNotes(uri, notes, sections);
           setQueryText(result.query);
           setResponse(result.response);
           setMatchedNotes(result.matchedNotes || []);
 
-          if (result.action && result.matchedNotes && result.matchedNotes.length > 0) {
+          if (result.action === "create_section" && result.sectionName) {
+            await addSection(
+              result.sectionName,
+              result.sectionIcon || "folder",
+              result.sectionKeywords || []
+            );
+          } else if (result.action && result.matchedNotes && result.matchedNotes.length > 0) {
             for (const note of result.matchedNotes) {
               if (result.action === "complete" && !note.completed) {
                 await toggleComplete(note.id);
               } else if (result.action === "delete") {
                 await deleteNote(note.id);
+              } else if (result.action === "archive" && !note.archivedAt) {
+                await archiveNote(note.id);
               }
             }
           }

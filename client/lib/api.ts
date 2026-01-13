@@ -1,5 +1,6 @@
 import { getApiUrl, apiRequest } from "@/lib/query-client";
 import { Note } from "@/hooks/useNotes";
+import { CustomSection } from "@/hooks/useCustomSections";
 import { File } from "expo-file-system/next";
 
 interface TranscribeResult {
@@ -8,20 +9,28 @@ interface TranscribeResult {
   category: string;
   dueDate?: string;
   entities?: string[];
+  tags?: string[];
 }
 
 interface QueryResult {
   query: string;
   response: string;
   matchedNotes?: Note[];
-  action?: "complete" | "delete" | null;
+  action?: "complete" | "delete" | "archive" | "create_section" | null;
+  sectionName?: string;
+  sectionIcon?: string;
+  sectionKeywords?: string[];
 }
 
-export async function transcribeAndProcess(audioUri: string): Promise<TranscribeResult> {
+export async function transcribeAndProcess(
+  audioUri: string,
+  customSections: CustomSection[] = []
+): Promise<TranscribeResult> {
   const formData = new FormData();
   
   const file = new File(audioUri);
   formData.append("audio", file);
+  formData.append("customSections", JSON.stringify(customSections));
 
   const url = new URL("/api/transcribe", getApiUrl());
   
@@ -40,13 +49,15 @@ export async function transcribeAndProcess(audioUri: string): Promise<Transcribe
 
 export async function queryNotes(
   audioUri: string,
-  notes: Note[]
+  notes: Note[],
+  customSections: CustomSection[] = []
 ): Promise<QueryResult> {
   const formData = new FormData();
   
   const file = new File(audioUri);
   formData.append("audio", file);
   formData.append("notes", JSON.stringify(notes));
+  formData.append("customSections", JSON.stringify(customSections));
 
   const url = new URL("/api/query", getApiUrl());
   
