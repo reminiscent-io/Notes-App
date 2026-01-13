@@ -1,0 +1,274 @@
+# How The App Actually Works (Simple Walkthrough)
+
+## The Basic User Experience
+
+### Opening the App
+You open it on your phone. You see:
+- A clean screen, mostly empty
+- Maybe today's date at the top
+- A **big microphone button** at the bottom (think like the Shazam button - impossible to miss)
+- Above that, your recent notes/tasks in a simple list
+
+### Capturing a Thought (The Core Action)
+
+**You tap the mic button:**
+1. Screen goes into "listening mode" - maybe the background slightly darkens, mic button pulses
+2. You speak: *"Remind me to call Mom tomorrow at 3pm"*
+3. You tap the mic again to stop (or it auto-stops after silence)
+4. You see the text appear on screen: "Remind me to call Mom tomorrow at 3pm"
+5. Behind the scenes:
+   - Audio → OpenAI Whisper → text transcription
+   - Text → GPT-4 → understands this is a reminder with a person (Mom), time (3pm tomorrow), and action (call)
+   - Saves both the raw text AND the structured data
+
+**You immediately see** a new card appear that says:
+- 📞 **Call Mom** 
+- Tomorrow, 3:00 PM
+
+### That's it. The core loop is done.
+
+---
+
+## The Two Modes of the App
+
+### Mode 1: CAPTURE (Voice Input)
+- Big mic button always visible
+- Quick, frictionless recording
+- Instant feedback showing what you said
+- Auto-saves everything
+
+### Mode 2: REVIEW (Visual + Voice Query)
+- **Visual Review**: Scroll through your notes organized by type/date
+  - Today's tasks
+  - Tomorrow's tasks  
+  - Random notes and ideas
+  - Shopping lists
+  
+- **Voice Query**: Instead of scrolling, tap mic and ask:
+  - "What do I need to do today?"
+  - "What did Christopher want again?"
+  - "Show me all my app ideas"
+  - AI searches your notes and tells you
+
+---
+
+## Best Way to Design It
+
+### The Interface Should Be:
+
+#### **1. Single Screen with Sections (No Complex Navigation)**
+
+```
+┌─────────────────────────┐
+│   Voice Notes           │ ← Simple header
+├─────────────────────────┤
+│                         │
+│  🔍 [Ask me anything]   │ ← Voice query button (smaller)
+│                         │
+│  📋 TODAY               │
+│  ☐ Call Mom - 3pm       │
+│  ☐ Client analysis due  │
+│                         │
+│  💡 IDEAS               │
+│  • Voice notes app...   │
+│                         │
+│  🛒 TO BUY              │
+│  • Avocados             │
+│                         │
+│  ▼ Show more...         │
+│                         │
+├─────────────────────────┤
+│       🎤  [RECORD]      │ ← BIG mic button (fixed)
+└─────────────────────────┘
+```
+
+#### **2. Information Hierarchy**
+- **Most urgent stuff at top** (today's tasks)
+- **Everything else grouped by type** (ideas, shopping, work notes, personal)
+- **Search/query at the very top** for when you need something specific
+
+#### **3. Visual Design Principles**
+
+**Simple & Clean:**
+- White/light background
+- Lots of breathing room
+- Clear typography (big enough to read while walking)
+- Emoji or simple icons for categories (not too many colors)
+
+**Touch-Friendly:**
+- Buttons minimum 44x44px (Apple's guideline)
+- Main mic button should be 80-100px
+- Swipe gestures: swipe right on a task = complete, swipe left = delete
+- No tiny tap targets
+
+**Feedback is Instant:**
+- When recording: visual pulsing animation
+- When processing: subtle loading indicator
+- When saved: quick checkmark animation
+- No waiting around wondering if it worked
+
+---
+
+## The Smart Parts (Where AI Comes In)
+
+### 1. Understanding Context
+You say: *"Christopher wants that analysis by EOD"*
+
+**Dumb app would save:** "Christopher wants that analysis by EOD"
+
+**Your app understands:**
+- Entity: Christopher (probably a client based on context)
+- Task: Analysis (what kind? It might remember if you mentioned it before)
+- Due: EOD (today, 5pm or end of business)
+- Creates a task automatically
+
+### 2. Connecting the Dots
+Later you say: *"Got the data for Christopher's project"*
+
+The app could:
+- Link this note to the earlier Christopher task
+- Update the task status to "in progress"
+- Show them together when you search "Christopher"
+
+### 3. Natural Queries
+You ask: *"What's on my plate tomorrow?"*
+
+The app:
+- Searches all notes with tomorrow's date
+- Prioritizes tasks over casual notes
+- Responds conversationally: "You have 2 things: Call Mom at 3pm, and pick up avocados"
+
+---
+
+## Database Design (Keep It Simple)
+
+### Option 1: Two Tables Approach (Recommended)
+
+**Table 1: `raw_entries`** (Everything you said)
+```
+id | timestamp | text | audio_url | processed
+---------------------------------------------------
+1  | 2026-...  | "Call Mom..." | null | true
+2  | 2026-...  | "Christopher..." | null | true
+```
+
+**Table 2: `structured_items`** (What the AI understood)
+```
+id | entry_id | type | title | due_date | entities | status
+------------------------------------------------------------------
+1  | 1        | task | "Call Mom" | 2026-01-13 15:00 | ["Mom"] | pending
+2  | 2        | task | "Client analysis" | 2026-01-12 17:00 | ["Christopher"] | pending
+```
+
+**Why two tables?**
+- Keeps the raw voice input forever (you might need it later)
+- Structured table is fast to query and display
+- Can re-process old entries if you improve the AI
+
+### Option 2: Single Table with JSON (Simpler for MVP)
+```
+id | timestamp | raw_text | structured_data (JSON) | processed
+----------------------------------------------------------------
+1  | 2026-...  | "Call Mom..." | {type: "task", ...} | true
+```
+
+---
+
+## Technical Stack (Keeping It Real)
+
+### Frontend
+- **React** (you know it)
+- **Vite** (fast, simple)
+- **Tailwind CSS** (quick styling)
+- **react-markdown** (for displaying notes nicely)
+
+### Voice Recording
+- **Browser's MediaRecorder API** (built-in, works on mobile Chrome/Safari)
+- No native app needed - Progressive Web App (PWA) is enough
+
+### Backend/Database
+**Option A: Replit** (easiest)
+- Host the whole thing on Replit
+- Use Replit DB (key-value store, stores JSON)
+- Simple API routes for saving/fetching
+
+**Option B: Supabase** (more powerful)
+- PostgreSQL database (real SQL)
+- Built-in auth if you want accounts later
+- Free tier is generous
+- Host frontend anywhere (Vercel, Netlify)
+
+**Don't use Google Sheets** - too slow, will feel laggy
+
+### APIs
+- **OpenAI Whisper** - speech to text ($0.006/minute, very cheap)
+- **OpenAI GPT-4** - understanding and queries (~$0.01-0.03 per request)
+
+---
+
+## Critical Design Decisions
+
+### Decision 1: Should the app auto-categorize or ask?
+**Auto-categorize** (Recommended for MVP)
+- Faster, less friction
+- You can always manually edit later
+- The AI will be right 80-90% of the time
+
+### Decision 2: How long should voice recordings be?
+**30-60 seconds max per recording**
+- Keeps costs low
+- Forces clarity (you speak more concisely)
+- Can always record multiple short notes
+
+### Decision 3: Should voice queries speak back?
+**Text response first, audio optional**
+- Faster (no TTS latency)
+- You can read it quickly
+- Add voice response later if needed
+
+### Decision 4: When should it sync/save?
+**Immediately after transcription**
+- No "save" button needed
+- Feels magical
+- Less chance of losing data
+
+---
+
+## What Makes This Design Good
+
+1. **One primary action** - The mic button is the whole app
+2. **No setup required** - Open and start talking
+3. **Smart but not confusing** - It organizes things, but you can still see everything
+4. **Mobile-native behaviors** - Swipe to complete, pull to refresh, etc.
+5. **Fast** - No waiting for sync, everything happens instantly
+6. **Forgiving** - Raw text is always there if AI messes up
+
+---
+
+## The MVP Feature Set
+
+**Week 1: Must Have**
+- ✅ Tap mic, record, transcribe
+- ✅ Display text on screen
+- ✅ Save to database
+
+**Week 2: Must Have**
+- ✅ AI extracts tasks/entities/dates
+- ✅ Display organized view (today, tomorrow, etc.)
+- ✅ Basic styling (readable, not ugly)
+
+**Week 3: Must Have**
+- ✅ Voice query ("what's due today?")
+- ✅ Mark tasks complete
+- ✅ Polish the UI
+
+**Later:**
+- Edit transcriptions
+- Manual add text notes
+- Search history
+- Multiple projects/categories
+- Sharing notes
+
+---
+
+Does this mental model make sense? Should we start building the basic voice recording + transcription piece first, or do you want to map out more of the UX flow?
