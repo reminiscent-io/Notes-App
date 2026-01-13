@@ -112,6 +112,7 @@ export default function MainFeedScreen() {
   };
 
   const stopRecording = async () => {
+    let cacheUri: string | null = null;
     let persistedUri: string | null = null;
     
     try {
@@ -120,7 +121,7 @@ export default function MainFeedScreen() {
       setIsRecording(false);
       setIsProcessing(true);
 
-      const cacheUri = audioRecorder.uri;
+      cacheUri = audioRecorder.uri;
       console.log("Recording stopped, URI:", cacheUri);
       
       if (!cacheUri) {
@@ -129,40 +130,66 @@ export default function MainFeedScreen() {
         return;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Wait for file to be fully written
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Use cache URI directly - more reliable across platforms
-      persistedUri = cacheUri;
+      // Verify cache file exists
+      const cacheInfo = await FileSystem.getInfoAsync(cacheUri);
+      if (!cacheInfo.exists) {
+        console.error("Cache file missing after recording");
+        Alert.alert("Error", "Recording file not found. Please try again.");
+        setIsProcessing(false);
+        return;
+      }
+      console.log("Cache file verified, size:", cacheInfo.size);
 
-      try {
-        const result = await transcribeAndProcess(persistedUri, sections);
-
-        await addNote({
-          rawText: result.rawText,
-          title: result.title,
-          category: result.category,
-          dueDate: result.dueDate,
-          entities: result.entities,
-          tags: result.tags,
-        });
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch (error: any) {
-        console.error("Failed to process recording:", error);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert("Error", "Could not process recording. Please try again.");
+      // Copy to Documents for reliable upload (cache files can be deleted by OS)
+      const recordingsDir = FileSystem.documentDirectory + "recordings/";
+      await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
+      persistedUri = recordingsDir + `recording_${Date.now()}.m4a`;
+      
+      await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
+      
+      // Verify persisted file exists
+      const persistedInfo = await FileSystem.getInfoAsync(persistedUri);
+      if (!persistedInfo.exists) {
+        console.error("Failed to persist recording to Documents");
+        // Fall back to cache URI
+        persistedUri = cacheUri;
+        cacheUri = null; // Don't delete cache since we're using it
+      } else {
+        console.log("Recording persisted, size:", persistedInfo.size);
       }
 
+      // Upload and process
+      const result = await transcribeAndProcess(persistedUri, sections);
+
+      await addNote({
+        rawText: result.rawText,
+        title: result.title,
+        category: result.category,
+        dueDate: result.dueDate,
+        entities: result.entities,
+        tags: result.tags,
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setIsProcessing(false);
-    } catch (error) {
-      console.error("Failed to stop recording:", error);
-      Alert.alert("Error", "Recording failed. Please try again.");
+    } catch (error: any) {
+      console.error("Failed to process recording:", error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert("Error", error.message || "Could not process recording. Please try again.");
       setIsProcessing(false);
     } finally {
-      // Clean up cache file after processing
+      // Clean up files AFTER upload is complete
       if (persistedUri) {
         try {
           await FileSystem.deleteAsync(persistedUri, { idempotent: true });
+        } catch {}
+      }
+      if (cacheUri) {
+        try {
+          await FileSystem.deleteAsync(cacheUri, { idempotent: true });
         } catch {}
       }
     }

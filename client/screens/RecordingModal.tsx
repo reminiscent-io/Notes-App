@@ -23,6 +23,7 @@ import Animated, {
   cancelAnimation,
 } from "react-native-reanimated";
 import { useAudioRecorder, AudioModule, setAudioModeAsync, RecordingPresets } from "expo-audio";
+import * as FileSystem from "expo-file-system/legacy";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -127,45 +128,92 @@ export default function RecordingModal() {
   };
 
   const stopRecording = async () => {
+    let cacheUri: string | null = null;
+    let persistedUri: string | null = null;
+
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await audioRecorder.stop();
       setIsRecording(false);
       setIsProcessing(true);
 
-      const uri = audioRecorder.uri;
-      if (uri) {
-        try {
-          const result = await transcribeAndProcess(uri, sections);
-          setTranscribedText(result.rawText);
-          
-          await addNote({
-            rawText: result.rawText,
-            title: result.title,
-            category: result.category,
-            dueDate: result.dueDate,
-            entities: result.entities,
-            tags: result.tags,
-          });
+      cacheUri = audioRecorder.uri;
+      console.log("Recording stopped, URI:", cacheUri);
 
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          
-          setTimeout(() => {
-            navigation.goBack();
-          }, 1000);
-        } catch (error: any) {
-          console.error("Failed to process recording:", error);
-          setTranscribedText("");
-          setErrorMessage(error.message || "Failed to process. Please try again.");
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        }
+      if (!cacheUri) {
+        setErrorMessage("Recording failed. Please try again.");
+        setIsProcessing(false);
+        return;
       }
+
+      // Wait for file to be fully written
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Verify cache file exists
+      const cacheInfo = await FileSystem.getInfoAsync(cacheUri);
+      if (!cacheInfo.exists) {
+        console.error("Cache file missing after recording");
+        setErrorMessage("Recording file not found. Please try again.");
+        setIsProcessing(false);
+        return;
+      }
+      console.log("Cache file verified, size:", cacheInfo.size);
+
+      // Copy to Documents for reliable upload
+      const recordingsDir = FileSystem.documentDirectory + "recordings/";
+      await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
+      persistedUri = recordingsDir + `recording_${Date.now()}.m4a`;
+
+      await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
+
+      // Verify persisted file exists
+      const persistedInfo = await FileSystem.getInfoAsync(persistedUri);
+      if (!persistedInfo.exists) {
+        console.error("Failed to persist recording to Documents");
+        persistedUri = cacheUri;
+        cacheUri = null;
+      } else {
+        console.log("Recording persisted, size:", persistedInfo.size);
+      }
+
+      // Upload and process
+      const result = await transcribeAndProcess(persistedUri, sections);
+      setTranscribedText(result.rawText);
+
+      await addNote({
+        rawText: result.rawText,
+        title: result.title,
+        category: result.category,
+        dueDate: result.dueDate,
+        entities: result.entities,
+        tags: result.tags,
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      setTimeout(() => {
+        navigation.goBack();
+      }, 1000);
 
       setIsProcessing(false);
     } catch (error: any) {
-      console.error("Failed to stop recording:", error);
-      setErrorMessage("Could not stop recording. Please try again.");
+      console.error("Failed to process recording:", error);
+      setTranscribedText("");
+      setErrorMessage(error.message || "Failed to process. Please try again.");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setIsProcessing(false);
+    } finally {
+      // Clean up files AFTER upload is complete
+      if (persistedUri) {
+        try {
+          await FileSystem.deleteAsync(persistedUri, { idempotent: true });
+        } catch {}
+      }
+      if (cacheUri) {
+        try {
+          await FileSystem.deleteAsync(cacheUri, { idempotent: true });
+        } catch {}
+      }
     }
   };
 

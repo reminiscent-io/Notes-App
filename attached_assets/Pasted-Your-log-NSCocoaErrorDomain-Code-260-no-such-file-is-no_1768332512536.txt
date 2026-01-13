@@ -1,0 +1,151 @@
+Your log (`NSCocoaErrorDomain Code=260 … no such file`) is not “iOS blocking a copy”. It means **the file path you are trying to upload does not exist at the moment the network layer tries to read it**.
+
+### Facts you can anchor on
+
+* In Expo Go, your recording ends up under a project-scoped sandbox (that long `ExponentExperienceData/@anonymous/...` path is normal). Expo explicitly notes each project has its own file system scope inside Expo Go. ([Expo Documentation][1])
+* Files under `cacheDirectory` are **temporary and may be deleted by the OS**. Expo documents that “files stored here may be automatically deleted by the system when low on storage.” ([Expo Documentation][1])
+* `FileSystem.uploadAsync` requires that “**the file must exist**.” ([Expo Documentation][1])
+* OpenAI’s transcription endpoint is `POST https://api.openai.com/v1/audio/transcriptions`, supports `m4a`, and has a **25 MB upload limit**. ([OpenAI Platform][2])
+
+### What’s most likely happening (inference, high confidence)
+
+You removed the “copy to Documents” step, and now you upload directly from the cache URI, but one of these is true:
+
+1. **You delete or overwrite the cache file too early** (common)
+   Example pattern that causes your exact error:
+
+* start upload (async)
+* immediately run cleanup (`deleteAsync(uri)` or similar)
+* iOS networking later tries to open the file for streaming → file is gone → Code=260
+
+2. **Dev mode reload/fast refresh is racing your upload**
+   In dev, React Native reloads can happen more often. If your code path triggers a reload, or you navigate in a way that triggers cleanup, the file disappears mid-request.
+
+3. Less common: **recording finalization race**
+   `stopAndUnloadAsync()` resolves, but the file is not actually present yet. This is reported occasionally in the wild, but you can validate it with an existence check right after stop.
+
+## Fix that works reliably in Expo Go
+
+### Principle
+
+If you want dev mode reliability, do **one** of these:
+
+* **Persist** the recording into `documentDirectory` first (durable), then upload.
+* Or keep cache, but **do not delete** until the upload finishes, and add existence checks.
+
+### Implementation: persist then upload (recommended)
+
+Use the legacy FileSystem API explicitly so you do not trip over newer deprecations (Expo docs indicate some FileSystem methods are deprecated unless you import from `expo-file-system/legacy`). ([Expo Documentation][3])
+
+```ts
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system/legacy";
+
+// 1) Stop recording and get the temp URI
+async function finalizeRecording(recording: Audio.Recording) {
+  await recording.stopAndUnloadAsync();
+  const tmpUri = recording.getURI();
+  if (!tmpUri) throw new Error("Recording URI is null");
+
+  // Existence check right away
+  const tmpInfo = await FileSystem.getInfoAsync(tmpUri);
+  if (!tmpInfo.exists) throw new Error(`Temp recording missing: ${tmpUri}`);
+
+  return tmpUri;
+}
+
+// 2) Copy to a durable location
+async function persistToDocuments(tmpUri: string) {
+  const dir = FileSystem.documentDirectory + "recordings/";
+  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+
+  const dstUri = dir + `${Date.now()}.m4a`;
+  await FileSystem.copyAsync({ from: tmpUri, to: dstUri });
+
+  const dstInfo = await FileSystem.getInfoAsync(dstUri);
+  if (!dstInfo.exists) throw new Error(`Persisted recording missing: ${dstUri}`);
+
+  return dstUri;
+}
+
+// 3) Upload to OpenAI transcriptions
+async function transcribeWithOpenAI(fileUri: string, apiKey: string) {
+  // OpenAI transcription endpoint + supported formats/limits are documented here :contentReference[oaicite:5]{index=5}
+  const url = "https://api.openai.com/v1/audio/transcriptions";
+
+  const result = await FileSystem.uploadAsync(url, fileUri, {
+    httpMethod: "POST",
+    uploadType: FileSystem.FileSystemUploadType.MULTIPART, // RFC 2387 multipart :contentReference[oaicite:6]{index=6}
+    fieldName: "file",                                    // multipart field name :contentReference[oaicite:7]{index=7}
+    mimeType: "audio/m4a",                                 // optional; guessed if omitted :contentReference[oaicite:8]{index=8}
+    parameters: {
+      model: "whisper-1", // or gpt-4o-mini-transcribe, etc. :contentReference[oaicite:9]{index=9}
+    },
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      // Do not manually set Content-Type here; uploadAsync constructs multipart boundaries.
+    },
+  });
+
+  // uploadAsync returns a string body
+  return JSON.parse(result.body);
+}
+
+// 4) Full flow with safe cleanup
+export async function recordAndTranscribe(recording: Audio.Recording, apiKey: string) {
+  const tmpUri = await finalizeRecording(recording);
+  const durableUri = await persistToDocuments(tmpUri);
+
+  try {
+    return await transcribeWithOpenAI(durableUri, apiKey);
+  } finally {
+    // Only delete after upload completes (success or failure)
+    await FileSystem.deleteAsync(durableUri, { idempotent: true });
+    await FileSystem.deleteAsync(tmpUri, { idempotent: true });
+  }
+}
+```
+
+### Why this fixes dev mode
+
+* `documentDirectory` is intended for files that remain until you delete them, unlike cache. ([Expo Documentation][1])
+* You only clean up after the upload finishes, so you do not race the network reader.
+* You validate file existence at each stage, so you will immediately know which step is failing.
+
+## If you insist on “no copy step”
+
+Do this minimum set, otherwise you will keep getting Code=260:
+
+1. Right before upload:
+
+```ts
+const info = await FileSystem.getInfoAsync(uri);
+if (!info.exists) throw new Error("Recording file is missing before upload");
+```
+
+2. Ensure cleanup happens strictly after:
+
+```ts
+try {
+  const res = await doUpload(uri);
+  return res;
+} finally {
+  await FileSystem.deleteAsync(uri, { idempotent: true });
+}
+```
+
+3. Do not trigger navigation or state resets that call cleanup while upload is in flight.
+
+## One more dev-only trap to check (high leverage)
+
+If in dev mode you upload to a backend running on your laptop and your app calls `http://localhost:PORT`, a physical iPhone will resolve `localhost` to the phone, not your laptop. Use your machine’s LAN IP instead. This does not explain Code=260 by itself, but it often appears alongside it (you can fail before the request is even sent because the file open happens first).
+
+## Security note (fact)
+
+Do not ship an OpenAI API key inside the mobile app. Route uploads to your backend and call OpenAI there.
+
+If you paste your current “stop recording → upload → cleanup” code, I can point to the exact line that’s deleting or invalidating the URI before the request reads it.
+
+[1]: https://docs.expo.dev/versions/latest/sdk/filesystem-legacy/ "FileSystem (legacy) - Expo Documentation"
+[2]: https://platform.openai.com/docs/guides/speech-to-text "Speech to text | OpenAI API"
+[3]: https://docs.expo.dev/versions/latest/sdk/filesystem/ "FileSystem - Expo Documentation"
