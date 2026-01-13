@@ -34,6 +34,15 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { queryNotes } from "@/lib/api";
 import { NoteCard } from "@/components/NoteCard";
 
+const EXAMPLE_PROMPTS = [
+  '"What do I need to do today?"',
+  '"Mark my grocery list as done"',
+  '"Create a work section"',
+  '"Archive my completed tasks"',
+  '"Delete my shopping notes"',
+  '"What ideas do I have?"',
+];
+
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface PermissionStatus {
@@ -56,6 +65,7 @@ export default function QueryModal() {
   const [errorMessage, setErrorMessage] = useState("");
   const [matchedNotes, setMatchedNotes] = useState<Note[]>([]);
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus | null>(null);
+  const [exampleIndex, setExampleIndex] = useState(0);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const pulseScale = useSharedValue(1);
@@ -93,6 +103,15 @@ export default function QueryModal() {
       pulseScale.value = withTiming(1, { duration: 200 });
     }
   }, [isRecording]);
+
+  useEffect(() => {
+    if (!isRecording && !response && !isProcessing) {
+      const interval = setInterval(() => {
+        setExampleIndex((prev) => (prev + 1) % EXAMPLE_PROMPTS.length);
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [isRecording, response, isProcessing]);
 
   const pulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
@@ -408,14 +427,20 @@ export default function QueryModal() {
                 >
                   {isRecording ? "Listening..." : "Ask me anything"}
                 </ThemedText>
-                <ThemedText
-                  type="body"
-                  style={{ color: "rgba(255,255,255,0.7)", marginTop: Spacing.sm, textAlign: "center" }}
+                <Animated.View
+                  key={exampleIndex}
+                  entering={FadeIn}
+                  exiting={FadeOut}
                 >
-                  {isRecording
-                    ? "Tap to stop"
-                    : '"What do I need to do today?"'}
-                </ThemedText>
+                  <ThemedText
+                    type="body"
+                    style={{ color: "rgba(255,255,255,0.7)", marginTop: Spacing.sm, textAlign: "center" }}
+                  >
+                    {isRecording
+                      ? "Tap to stop"
+                      : EXAMPLE_PROMPTS[exampleIndex]}
+                  </ThemedText>
+                </Animated.View>
 
                 {errorMessage ? (
                   <Animated.View

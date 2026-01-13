@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainFeedScreen from "@/screens/MainFeedScreen";
 import RecordingModal from "@/screens/RecordingModal";
 import QueryModal from "@/screens/QueryModal";
+import SettingsScreen from "@/screens/SettingsScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { HeaderTitle } from "@/components/HeaderTitle";
 
@@ -10,6 +11,7 @@ export type RootStackParamList = {
   MainFeed: undefined;
   Recording: undefined;
   Query: undefined;
+  Settings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -42,6 +44,13 @@ export default function RootStackNavigator() {
           presentation: "transparentModal",
           headerShown: false,
           animation: "fade",
+        }}
+      />
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          headerTitle: "Settings",
         }}
       />
     </Stack.Navigator>
