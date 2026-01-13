@@ -60,6 +60,12 @@ Preferred communication style: Simple, everyday language.
 - **Archiving**: Voice command "Archive my completed work tasks" hides notes from main view while keeping them searchable
 - **Hooks**: `useCustomSections` for section CRUD, notes have `tags[]` and `archivedAt` fields
 
+### Settings & Management
+- **Settings Screen**: Accessible from gear icon in main feed header
+- **Section Management**: View, delete custom sections (deleting also cleans up note tags)
+- **Archived Notes**: View all archived notes, swipe right to unarchive (reschedules reminders)
+- **Discoverability**: QueryModal shows rotating example prompts every 3 seconds to teach voice commands
+
 ### Data Flow
 1. User records voice → Audio file sent to `/api/transcribe` with custom sections
 2. OpenAI Whisper transcribes audio → text

@@ -20,6 +20,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { useCustomSections, CustomSection } from "@/hooks/useCustomSections";
 import { useNotes } from "@/hooks/useNotes";
 import { SectionHeader } from "@/components/SectionHeader";
+import { useNotifications } from "@/hooks/useNotifications";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -30,7 +31,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
   const { sections, deleteSection } = useCustomSections();
-  const { notes } = useNotes();
+  const { notes, updateNoteTags } = useNotes();
 
   const archivedNotes = notes.filter((n) => n.archivedAt);
   const archivedCount = archivedNotes.length;
@@ -46,12 +47,20 @@ export default function SettingsScreen() {
           {
             text: "Delete",
             style: "destructive",
-            onPress: () => deleteSection(section.id),
+            onPress: async () => {
+              for (const note of notes) {
+                if (note.tags?.includes(section.name)) {
+                  const updatedTags = note.tags.filter((t) => t !== section.name);
+                  await updateNoteTags(note.id, updatedTags);
+                }
+              }
+              await deleteSection(section.id);
+            },
           },
         ]
       );
     },
-    [deleteSection]
+    [deleteSection, notes, updateNoteTags]
   );
 
   const handleArchivedPress = useCallback(() => {

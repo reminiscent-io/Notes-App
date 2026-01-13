@@ -23,6 +23,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 import { EmptyState } from "@/components/EmptyState";
 import { useNotes, Note } from "@/hooks/useNotes";
+import { useNotifications } from "@/hooks/useNotifications";
 
 interface ArchivedNoteCardProps {
   note: Note;
@@ -139,6 +140,7 @@ export default function ArchivedNotesScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { notes, refreshNotes, unarchiveNote } = useNotes();
+  const { scheduleNoteReminder } = useNotifications();
   const [refreshing, setRefreshing] = React.useState(false);
 
   const archivedNotes = notes.filter((n) => n.archivedAt);
@@ -150,10 +152,13 @@ export default function ArchivedNotesScreen() {
   }, [refreshNotes]);
 
   const handleUnarchive = useCallback(
-    (id: string) => {
-      unarchiveNote(id);
+    async (note: Note) => {
+      await unarchiveNote(note.id);
+      if (!note.completed) {
+        await scheduleNoteReminder(note);
+      }
     },
-    [unarchiveNote]
+    [unarchiveNote, scheduleNoteReminder]
   );
 
   return (
@@ -187,7 +192,7 @@ export default function ArchivedNotesScreen() {
               <ArchivedNoteCard
                 key={note.id}
                 note={note}
-                onUnarchive={() => handleUnarchive(note.id)}
+                onUnarchive={() => handleUnarchive(note)}
                 delay={100 + index * 50}
               />
             ))}
