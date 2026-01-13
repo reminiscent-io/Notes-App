@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useNotifications } from "./useNotifications";
 
 export interface Note {
   id: string;
@@ -36,6 +37,7 @@ const STORAGE_KEY = "@voice_notes";
 export function NotesProvider({ children }: { children: ReactNode }) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
+  const { scheduleNoteReminder, cancelNoteReminder } = useNotifications();
 
   const loadNotes = useCallback(async () => {
     try {
@@ -83,25 +85,36 @@ export function NotesProvider({ children }: { children: ReactNode }) {
       saveNotes(updated);
       return updated;
     });
-  }, []);
+
+    scheduleNoteReminder(newNote);
+  }, [scheduleNoteReminder]);
 
   const toggleComplete = useCallback(async (id: string) => {
     setNotes((prev) => {
-      const updated = prev.map((note) =>
-        note.id === id ? { ...note, completed: !note.completed } : note
+      const note = prev.find((n) => n.id === id);
+      if (note) {
+        if (!note.completed) {
+          cancelNoteReminder(id);
+        } else {
+          scheduleNoteReminder({ ...note, completed: false });
+        }
+      }
+      const updated = prev.map((n) =>
+        n.id === id ? { ...n, completed: !n.completed } : n
       );
       saveNotes(updated);
       return updated;
     });
-  }, []);
+  }, [cancelNoteReminder, scheduleNoteReminder]);
 
   const deleteNote = useCallback(async (id: string) => {
+    cancelNoteReminder(id);
     setNotes((prev) => {
       const updated = prev.filter((note) => note.id !== id);
       saveNotes(updated);
       return updated;
     });
-  }, []);
+  }, [cancelNoteReminder]);
 
   const refreshNotes = useCallback(async () => {
     await loadNotes();
