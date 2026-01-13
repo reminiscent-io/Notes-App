@@ -26,8 +26,10 @@ Preferred communication style: Simple, everyday language.
 **Key Design Patterns**:
 - Voice-first UX with prominent mic button (80x80pt floating action button)
 - Modal overlays for recording and query states
-- Swipe-to-delete gestures on note cards
+- Swipe gestures on note cards (right to complete, left to delete)
 - Section-based organization (Today, Tomorrow, Ideas, Shopping)
+- Push notifications for reminders based on note category/due date
+- Voice commands to complete or delete notes via query modal
 
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript
@@ -37,7 +39,18 @@ Preferred communication style: Simple, everyday language.
 
 **API Endpoints**:
 - `POST /api/transcribe` - Accepts audio file, returns transcription + structured note data
-- `POST /api/query` - Voice search against existing notes
+- `POST /api/query` - Voice search against existing notes, supports action intents (complete, delete)
+
+### Notifications System
+- **Framework**: expo-notifications for local push notifications
+- **Scheduling Logic**:
+  - Notes with specific `dueDate`: reminder 15 minutes before
+  - "Today" notes without time: reminder at 6 PM (or 1 hour later if past 6 PM)
+  - "Tomorrow" notes: reminder at 9 AM next day
+  - "Shopping" notes: reminder at 10 AM next day
+  - "Ideas" and "Other": no automatic reminder
+- **Hooks**: `useNotifications` manages scheduling, cancellation, and permissions
+- Reminders are automatically cancelled when notes are completed or deleted
 
 ### Data Flow
 1. User records voice → Audio file sent to `/api/transcribe`
@@ -64,6 +77,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Key NPM Packages
 - `expo-audio` - Audio recording on mobile
+- `expo-notifications` - Push notifications and reminders
 - `openai` - OpenAI API client
 - `drizzle-orm` + `drizzle-zod` - Database ORM and validation
 - `multer` - Multipart form handling for audio uploads
