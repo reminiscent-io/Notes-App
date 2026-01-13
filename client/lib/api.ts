@@ -2,13 +2,17 @@ import { getApiUrl, apiRequest } from "@/lib/query-client";
 import { Note } from "@/hooks/useNotes";
 import { CustomSection } from "@/hooks/useCustomSections";
 
-interface TranscribeResult {
+interface ParsedNote {
   rawText: string;
   title: string;
   category: string;
   dueDate?: string;
   entities?: string[];
   tags?: string[];
+}
+
+interface TranscribeResult {
+  notes: ParsedNote[];
 }
 
 interface QueryResult {
@@ -20,6 +24,8 @@ interface QueryResult {
   sectionIcon?: string;
   sectionKeywords?: string[];
 }
+
+export type { ParsedNote };
 
 export async function transcribeAndProcess(
   audioUri: string,

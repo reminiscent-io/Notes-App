@@ -145,14 +145,17 @@ export default function MainFeedScreen() {
       // Upload and process immediately
       const result = await transcribeAndProcess(persistedUri, sections);
 
-      await addNote({
-        rawText: result.rawText,
-        title: result.title,
-        category: result.category,
-        dueDate: result.dueDate,
-        entities: result.entities,
-        tags: result.tags,
-      });
+      // Create all parsed notes
+      for (const note of result.notes) {
+        await addNote({
+          rawText: note.rawText,
+          title: note.title,
+          category: note.category,
+          dueDate: note.dueDate,
+          entities: note.entities,
+          tags: note.tags,
+        });
+      }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setIsProcessing(false);

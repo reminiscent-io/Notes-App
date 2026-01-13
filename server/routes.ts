@@ -56,23 +56,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messages: [
           {
             role: "system",
-            content: `You are a voice notes assistant. Analyze the transcribed text and extract structured information.
-            
-Determine:
-1. A short title (max 50 chars) summarizing the note
+            content: `You are a voice notes assistant. Analyze the transcribed text and extract one or more distinct notes.
+
+IMPORTANT: If the user mentions multiple unrelated items, tasks, or ideas, create SEPARATE notes for each. For example:
+- "Remind me to call mom tomorrow, also buy milk" = 2 notes (call reminder + shopping)
+- "I have an idea for an app, and don't forget the meeting at 3pm" = 2 notes (idea + meeting)
+- "Pick up groceries: milk, eggs, bread" = 1 note (all items are part of one shopping list)
+
+For EACH distinct note, determine:
+1. A short title (max 50 chars) summarizing that specific note
 2. Category: "today" (due today), "tomorrow" (due tomorrow), "idea" (creative thought/project), "shopping" (items to buy), or "other"
 3. Due date if mentioned (in ISO format)
 4. Entities mentioned (names of people, places, things)
-5. Tags: Which custom sections this note belongs to (based on keywords or semantic meaning)
+5. Tags: Which custom sections this note belongs to
+6. rawText: The portion of the transcript that relates to this specific note
 ${sectionsContext}
 
 Respond with JSON in this exact format:
 {
-  "title": "Short descriptive title",
-  "category": "today|tomorrow|idea|shopping|other",
-  "dueDate": "2026-01-13T15:00:00Z" or null,
-  "entities": ["Person1", "Thing1"],
-  "tags": ["SectionName1", "SectionName2"]
+  "notes": [
+    {
+      "rawText": "The relevant portion of the transcript",
+      "title": "Short descriptive title",
+      "category": "today|tomorrow|idea|shopping|other",
+      "dueDate": "2026-01-13T15:00:00Z" or null,
+      "entities": ["Person1", "Thing1"],
+      "tags": ["SectionName1"]
+    }
+  ]
 }
 
 Time references:
@@ -105,14 +116,16 @@ Tags:
 
       try { fs.unlinkSync(newPath); } catch {}
 
-      res.json({
+      const notes = parsed.notes || [{
         rawText,
         title: parsed.title || rawText.slice(0, 50),
         category: parsed.category || "other",
         dueDate: parsed.dueDate || null,
         entities: parsed.entities || [],
         tags: parsed.tags || [],
-      });
+      }];
+
+      res.json({ notes });
     } catch (error: any) {
       console.error("Transcription error:", error);
       res.status(500).json({ error: error.message || "Failed to transcribe audio" });
