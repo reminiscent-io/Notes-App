@@ -22,7 +22,7 @@ import Animated, {
   withSpring,
   cancelAnimation,
 } from "react-native-reanimated";
-import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
+import { useAudioRecorder, AudioModule, RecordingPresets, setAudioModeAsync } from "expo-audio";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -109,6 +109,14 @@ export default function RecordingModal() {
       setErrorMessage("");
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setTranscribedText("");
+      
+      if (Platform.OS === "ios") {
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+        });
+      }
+      
       await audioRecorder.record();
       setIsRecording(true);
     } catch (error: any) {
