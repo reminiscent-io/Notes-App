@@ -25,7 +25,7 @@ import Animated, {
   withSpring,
   cancelAnimation,
 } from "react-native-reanimated";
-import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
+import { useAudioRecorder, AudioModule, RecordingPresets, setAudioModeAsync } from "expo-audio";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -138,7 +138,16 @@ export default function QueryModal() {
       setQueryText("");
       setResponse("");
       setMatchedNotes([]);
-      await audioRecorder.record();
+
+      if (Platform.OS === "ios") {
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+        });
+      }
+
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
       setIsRecording(true);
     } catch (error: any) {
       console.error("Failed to start recording:", error);
@@ -173,7 +182,7 @@ export default function QueryModal() {
         await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
         console.log("Recording copied to:", persistedUri);
       } catch (copyError) {
-        console.log("Copy failed, using cache URI directly");
+        console.log("Copy failed:", copyError);
         persistedUri = cacheUri;
       }
 
@@ -227,9 +236,11 @@ export default function QueryModal() {
     }
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
     if (isRecording) {
-      audioRecorder.stop();
+      try {
+        await audioRecorder.stop();
+      } catch {}
     }
     navigation.goBack();
   };

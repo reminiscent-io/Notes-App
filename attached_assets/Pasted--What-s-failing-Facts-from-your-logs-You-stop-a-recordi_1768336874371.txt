@@ -1,0 +1,162 @@
+## What’s failing
+
+### Facts from your logs
+
+* You stop a recording and get a URI like `file:///.../ExpoAudio/recording-....m4a`.
+* Immediately after, you sometimes see “Cache file missing after recording”, and earlier you hit iOS `NSCocoaErrorDomain Code=260` (“No such file or directory”) when the request body is being built.
+  That specific error happens when iOS cannot open the file path you’re trying to upload (so the URI you’re passing is not backed by a readable file at that moment).
+
+### Facts from the code you uploaded
+
+Across **RecordingModal**, **QueryModal**, and **MainFeedScreen**, you start the recorder by calling `audioRecorder.record()` directly, with **no call to** `prepareToRecordAsync()` first.
+
+Expo’s `expo-audio` docs show the recording flow as:
+
+* `await audioRecorder.prepareToRecordAsync();`
+* `audioRecorder.record();`
+* `await audioRecorder.stop();` (then the file is available on `audioRecorder.uri`)
+
+## Primary root cause
+
+### High confidence: you’re skipping the recorder “prepare” step
+
+Your start sequence does not match the documented usage.
+
+**Why this maps to your symptom**
+
+* If the recorder isn’t prepared, it can still surface a URI, but that URI may point to a file that was never actually created/flushed, which then fails at upload time with “file doesn’t exist”.
+
+## Secondary issues that can amplify flakiness
+
+### Medium confidence: `QueryModal` never sets iOS audio mode before recording
+
+`QueryModal.startRecording()` calls `audioRecorder.record()` without setting `setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true })` on iOS. 
+You do set audio mode in `RecordingModal` and `MainFeedScreen`, so this is inconsistent behavior across screens.
+
+### Medium confidence: you’re hiding the real copy error
+
+In all three files you catch the copy error but don’t log the exception, so you can’t tell if it’s failing because:
+
+* the source file truly doesn’t exist,
+* the source exists but is not readable,
+* destination directory issues, etc.
+
+## Fixes I would make first
+
+### 1) Fix the recording lifecycle everywhere
+
+In **all three files**, update `startRecording` to:
+
+* Set iOS audio mode (consistent across screens)
+* Prepare
+* Start recording
+
+Example pattern:
+
+```ts
+// iOS: set audio mode once per recording session (or once at app start)
+if (Platform.OS === "ios") {
+  await setAudioModeAsync({
+    allowsRecording: true,
+    playsInSilentMode: true,
+  });
+}
+
+// Required per Expo docs
+await audioRecorder.prepareToRecordAsync();
+
+// Start recording (docs do not await this)
+audioRecorder.record();
+```
+
+Apply this in:
+
+* `RecordingModal.startRecording` 
+* `QueryModal.startRecording` (you’ll need to import `setAudioModeAsync` too) 
+* `MainFeedScreen.startRecording` 
+
+### 2) Add a “wait until file exists” gate right after stop
+
+Even with correct usage, flushing can be slightly delayed on real devices. The safest approach is to block upload until the file is present.
+
+```ts
+async function waitForRecordingFile(uri: string) {
+  for (let i = 0; i < 20; i++) {
+    const info = await FileSystem.getInfoAsync(uri);
+    if (info.exists && (info.size ?? 0) > 0) return info;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(`Recording file not ready: ${uri}`);
+}
+```
+
+Use it like:
+
+```ts
+await audioRecorder.stop();
+const cacheUri = audioRecorder.uri;
+
+if (!cacheUri) throw new Error("Recorder returned no URI");
+
+// Ensure the OS has actually materialized the file before copy/upload
+await waitForRecordingFile(cacheUri);
+```
+
+Note: If you happen to be on Expo SDK 54 and are importing `expo-file-system/legacy`, there are reports of `getInfoAsync` returning incorrect sizes even when the file exists. If that bites you, switch to checking `exists` only, or switch away from the legacy FS import.
+I can’t confirm your SDK version from the files you uploaded, so treat this as conditional.
+
+### 3) Log the actual copy failure
+
+Right now you swallow the exception. Change:
+
+```ts
+} catch (copyError) {
+  console.log("Copy failed, using cache URI directly");
+  persistedUri = cacheUri;
+}
+```
+
+to:
+
+```ts
+} catch (copyError) {
+  console.log("Copy failed:", copyError);
+  persistedUri = cacheUri;
+}
+```
+
+If `copyError` is “no such file”, that confirms the real problem was “recording file never existed”, not “iOS blocked copying”.
+
+### 4) Also fix “stop on close” to avoid leaving the recorder in a bad state
+
+You do:
+
+```ts
+if (isRecording) {
+  audioRecorder.stop(); // not awaited
+}
+navigation.goBack();
+```
+
+in both modals.
+Make it `await audioRecorder.stop()` inside an async close handler (and consider `try/catch`). This prevents half-finalized recordings and weird follow-on state.
+
+## Separate but important: Expo Go limitations in your logs
+
+The `expo-notifications` warning you’re seeing is real: in SDK 53+, **push notifications (remote)** are unavailable in Expo Go on Android, and Expo recommends using a development build instead.
+This does not directly explain the missing audio file, but it’s a strong signal that a dev build is the right dev environment for your app anyway.
+
+## How I’d validate on your phone (fast)
+
+1. After you apply `prepareToRecordAsync`, record for 2–3 seconds.
+2. After stop, log:
+
+   * `cacheUri`
+   * `await FileSystem.getInfoAsync(cacheUri)` (exists + size)
+3. Only upload if exists true (and ideally size > 0).
+4. If upload still fails, log the exact iOS error again. If it’s still Code 260, then either:
+
+   * the URI is wrong (less likely once you prepare), or
+   * something is deleting the file before upload (then we’d look at cleanup timing and any reloads/fast refresh behavior).
+
+If you want, I can give you a single reusable `useVoiceRecording()` hook to dedupe the recording logic (so you don’t have 3 slightly different implementations drifting over time).

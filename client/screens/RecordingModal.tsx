@@ -117,8 +117,9 @@ export default function RecordingModal() {
           playsInSilentMode: true,
         });
       }
-      
-      await audioRecorder.record();
+
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
       setIsRecording(true);
     } catch (error: any) {
       console.error("Failed to start recording:", error);
@@ -153,7 +154,7 @@ export default function RecordingModal() {
         await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
         console.log("Recording copied to:", persistedUri);
       } catch (copyError) {
-        console.log("Copy failed, using cache URI directly");
+        console.log("Copy failed:", copyError);
         persistedUri = cacheUri;
       }
 
@@ -201,9 +202,11 @@ export default function RecordingModal() {
     }
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
     if (isRecording) {
-      audioRecorder.stop();
+      try {
+        await audioRecorder.stop();
+      } catch {}
     }
     navigation.goBack();
   };
