@@ -1,10 +1,12 @@
-import React, { useState, useCallback, useLayoutEffect } from "react";
+import React, { useState, useCallback, useLayoutEffect, useEffect } from "react";
 import {
   View,
   StyleSheet,
   ScrollView,
   RefreshControl,
   Pressable,
+  Platform,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight, HeaderButton } from "@react-navigation/elements";
@@ -13,6 +15,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInUp } from "react-native-reanimated";
+import { useAudioRecorder, AudioModule, setAudioModeAsync, RecordingPresets } from "expo-audio";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -24,6 +27,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { AnimatedOrb } from "@/components/AnimatedOrb";
 import { useNotes, Note } from "@/hooks/useNotes";
 import { useCustomSections } from "@/hooks/useCustomSections";
+import { transcribeAndProcess } from "@/lib/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -32,9 +36,37 @@ export default function MainFeedScreen() {
   const headerHeight = useHeaderHeight();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
-  const { notes, loading, refreshNotes, toggleComplete, deleteNote } = useNotes();
+  const { notes, loading, refreshNotes, toggleComplete, deleteNote, addNote } = useNotes();
   const { sections } = useCustomSections();
   const [refreshing, setRefreshing] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+
+  useEffect(() => {
+    checkPermissions();
+  }, []);
+
+  const checkPermissions = async () => {
+    try {
+      const status = await AudioModule.getRecordingPermissionsAsync();
+      setHasPermission(status.granted);
+    } catch {
+      setHasPermission(false);
+    }
+  };
+
+  const requestPermission = async () => {
+    try {
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      setHasPermission(status.granted);
+      return status.granted;
+    } catch {
+      return false;
+    }
+  };
 
   const activeNotes = notes.filter((n) => !n.archivedAt);
   const todayNotes = activeNotes.filter((n) => n.category === "today");
@@ -51,10 +83,82 @@ export default function MainFeedScreen() {
     setRefreshing(false);
   }, [refreshNotes]);
 
+  const startRecording = useCallback(async () => {
+    try {
+      if (hasPermission !== true) {
+        const granted = await requestPermission();
+        if (!granted) {
+          Alert.alert("Permission Required", "Microphone access is needed to record voice notes.");
+          return;
+        }
+      }
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      if (Platform.OS === "ios") {
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+        });
+      }
+
+      await audioRecorder.record();
+      setIsRecording(true);
+    } catch (error) {
+      console.error("Failed to start recording:", error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }, [hasPermission, audioRecorder]);
+
+  const stopRecording = useCallback(async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await audioRecorder.stop();
+      setIsRecording(false);
+      setIsProcessing(true);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const uri = audioRecorder.uri;
+      if (uri) {
+        try {
+          const result = await transcribeAndProcess(uri, sections);
+
+          await addNote({
+            rawText: result.rawText,
+            title: result.title,
+            category: result.category,
+            dueDate: result.dueDate,
+            entities: result.entities,
+            tags: result.tags,
+          });
+
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (error: any) {
+          console.error("Failed to process recording:", error);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert("Error", "Could not process recording. Please try again.");
+        }
+      } else {
+        Alert.alert("Error", "Recording failed. Please try again.");
+      }
+
+      setIsProcessing(false);
+    } catch (error) {
+      console.error("Failed to stop recording:", error);
+      setIsProcessing(false);
+    }
+  }, [audioRecorder, sections, addNote]);
+
   const handleMicPress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    navigation.navigate("Recording");
-  }, [navigation]);
+    if (isProcessing) return;
+    
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }, [isRecording, isProcessing, startRecording, stopRecording]);
 
   const handleQueryPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -228,6 +332,7 @@ export default function MainFeedScreen() {
       <View style={[styles.orbContainer, { bottom: insets.bottom + Spacing.sm }]}>
         <AnimatedOrb
           onPress={handleMicPress}
+          isRecording={isRecording || isProcessing}
           size={Spacing.micButtonSize}
           testID="button-record"
         />
