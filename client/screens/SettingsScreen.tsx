@@ -34,6 +34,16 @@ const THEME_OPTIONS: { value: Settings["themeMode"]; label: string; icon: keyof 
 const REMINDER_HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
 const LEAD_MINUTES = [5, 10, 15, 30, 60];
 
+const TIMEZONES = [
+  { value: "America/New_York", label: "Eastern (ET)" },
+  { value: "America/Chicago", label: "Central (CT)" },
+  { value: "America/Denver", label: "Mountain (MT)" },
+  { value: "America/Los_Angeles", label: "Pacific (PT)" },
+  { value: "America/Phoenix", label: "Arizona (AZ)" },
+  { value: "Pacific/Honolulu", label: "Hawaii (HT)" },
+  { value: "America/Anchorage", label: "Alaska (AKT)" },
+];
+
 function formatHour(hour: number): string {
   const ampm = hour >= 12 ? "PM" : "AM";
   const h = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
@@ -114,6 +124,15 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     updateSettings({ reminderLeadMinutes: LEAD_MINUTES[nextIndex] });
   }, [settings.reminderLeadMinutes, updateSettings]);
+
+  const handleTimezoneChange = useCallback(() => {
+    const currentIndex = TIMEZONES.findIndex((tz) => tz.value === settings.timezone);
+    const nextIndex = (currentIndex + 1) % TIMEZONES.length;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    updateSettings({ timezone: TIMEZONES[nextIndex].value });
+  }, [settings.timezone, updateSettings]);
+
+  const currentTimezoneLabel = TIMEZONES.find((tz) => tz.value === settings.timezone)?.label || "Eastern (ET)";
 
   const renderSectionItem = (section: CustomSection, index: number) => (
     <Animated.View
@@ -270,6 +289,23 @@ export default function SettingsScreen() {
               <View style={styles.settingValue}>
                 <ThemedText type="body" style={{ color: Colors.light.accent }}>
                   {formatMinutes(settings.reminderLeadMinutes)}
+                </ThemedText>
+                <Feather name="chevron-right" size={16} color={theme.textTertiary} />
+              </View>
+            </Pressable>
+
+            <View style={[styles.divider, { backgroundColor: theme.textTertiary }]} />
+
+            <Pressable onPress={handleTimezoneChange} style={styles.settingRow}>
+              <View style={styles.settingLabel}>
+                <Feather name="globe" size={18} color={theme.text} />
+                <ThemedText type="body" style={{ color: theme.text, marginLeft: Spacing.sm }}>
+                  Timezone
+                </ThemedText>
+              </View>
+              <View style={styles.settingValue}>
+                <ThemedText type="body" style={{ color: Colors.light.accent }}>
+                  {currentTimezoneLabel}
                 </ThemedText>
                 <Feather name="chevron-right" size={16} color={theme.textTertiary} />
               </View>

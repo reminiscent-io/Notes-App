@@ -6,6 +6,7 @@ export interface Settings {
   todayReminderHour: number;
   tomorrowReminderHour: number;
   reminderLeadMinutes: number;
+  timezone: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -13,6 +14,7 @@ const DEFAULT_SETTINGS: Settings = {
   todayReminderHour: 18,
   tomorrowReminderHour: 9,
   reminderLeadMinutes: 15,
+  timezone: "America/New_York",
 };
 
 interface SettingsContextType {
