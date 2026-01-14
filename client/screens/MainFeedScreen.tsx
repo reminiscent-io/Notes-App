@@ -376,7 +376,8 @@ export default function MainFeedScreen() {
       <View style={[styles.orbContainer, { bottom: insets.bottom + Spacing.sm }]}>
         <AnimatedOrb
           onPress={handleMicPress}
-          isRecording={isRecording || isProcessing}
+          isRecording={isRecording}
+          isProcessing={isProcessing}
           size={Spacing.micButtonSize}
           testID="button-record"
         />

@@ -21,6 +21,7 @@ interface AnimatedOrbProps {
   onPressIn?: () => void;
   onPressOut?: () => void;
   isRecording?: boolean;
+  isProcessing?: boolean;
   size?: number;
   testID?: string;
 }
@@ -32,6 +33,7 @@ export function AnimatedOrb({
   onPressIn,
   onPressOut,
   isRecording = false,
+  isProcessing = false,
   size = 80,
   testID,
 }: AnimatedOrbProps) {
@@ -44,6 +46,7 @@ export function AnimatedOrb({
   const rotation = useSharedValue(0);
   const pulseOpacity = useSharedValue(0);
   const buttonScale = useSharedValue(1);
+  const spinnerRotation = useSharedValue(0);
 
   const baseColor = isDark ? Colors.dark.accent : Colors.light.primary;
   const glowColor = isDark ? "#00D4FF" : "#0066FF";
@@ -122,6 +125,19 @@ export function AnimatedOrb({
     }
   }, [isRecording]);
 
+  useEffect(() => {
+    if (isProcessing) {
+      spinnerRotation.value = withRepeat(
+        withTiming(360, { duration: 1000, easing: Easing.linear }),
+        -1,
+        false
+      );
+    } else {
+      cancelAnimation(spinnerRotation);
+      spinnerRotation.value = 0;
+    }
+  }, [isProcessing]);
+
   const ring1Style = useAnimatedStyle(() => ({
     transform: [{ scale: ring1Scale.value }, { rotate: `${rotation.value}deg` }],
     opacity: interpolate(ring1Scale.value, [1, 1.15], [0.3, 0.15]),
@@ -145,6 +161,10 @@ export function AnimatedOrb({
   const recordingPulseStyle = useAnimatedStyle(() => ({
     opacity: pulseOpacity.value,
     transform: [{ scale: interpolate(pulseOpacity.value, [0.2, 0.8], [1, 1.5]) }],
+  }));
+
+  const spinnerStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spinnerRotation.value}deg` }],
   }));
 
   const handlePressIn = () => {
@@ -216,6 +236,7 @@ export function AnimatedOrb({
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         testID={testID}
+        disabled={isProcessing}
         style={[
           styles.core,
           coreStyle,
@@ -223,17 +244,23 @@ export function AnimatedOrb({
             width: size,
             height: size,
             borderRadius: size / 2,
-            backgroundColor: isRecording ? "#FF3B30" : baseColor,
-            shadowColor: isRecording ? "#FF3B30" : glowColor,
+            backgroundColor: isProcessing ? glowColor : isRecording ? "#FF3B30" : baseColor,
+            shadowColor: isProcessing ? glowColor : isRecording ? "#FF3B30" : glowColor,
           },
         ]}
       >
         <View style={styles.innerGlow}>
-          <Feather
-            name={isRecording ? "square" : "mic"}
-            size={size * 0.4}
-            color="#FFFFFF"
-          />
+          {isProcessing ? (
+            <Animated.View style={spinnerStyle}>
+              <Feather name="loader" size={size * 0.4} color="#FFFFFF" />
+            </Animated.View>
+          ) : (
+            <Feather
+              name={isRecording ? "square" : "mic"}
+              size={size * 0.4}
+              color="#FFFFFF"
+            />
+          )}
         </View>
       </AnimatedPressable>
     </View>
