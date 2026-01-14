@@ -3,16 +3,17 @@ import { createServer, type Server } from "node:http";
 import multer from "multer";
 import OpenAI, { toFile } from "openai";
 
-// Lazy initialization of OpenAI client
 // Using gpt-4o-mini for faster, cheaper responses while maintaining good quality
 let openai: OpenAI | null = null;
 
 function getOpenAIClient(): OpenAI {
   if (!openai) {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not set. Please add your OpenAI API key.");
+    // Replit AI Integrations handles keys automatically if configured
+    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("OpenAI API key is not set.");
     }
-    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    openai = new OpenAI({ apiKey });
   }
   return openai;
 }
