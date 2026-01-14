@@ -22,7 +22,7 @@ import Animated, {
   withSpring,
   cancelAnimation,
 } from "react-native-reanimated";
-import { useAudioRecorder, AudioModule, setAudioModeAsync, RecordingPresets } from "expo-audio";
+import { useAudioRecorder, AudioModule, setAudioModeAsync, RecordingPresets, type RecordingOptions } from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -33,6 +33,13 @@ import { useCustomSections } from "@/hooks/useCustomSections";
 import { transcribeAndProcess } from "@/lib/api";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const VOICE_RECORDING_OPTIONS: RecordingOptions = {
+  ...RecordingPresets.HIGH_QUALITY,
+  numberOfChannels: 1,
+  sampleRate: 16000,
+  bitRate: 32000,
+};
 
 interface PermissionStatus {
   granted: boolean;
@@ -52,7 +59,7 @@ export default function RecordingModal() {
   const [errorMessage, setErrorMessage] = useState("");
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus | null>(null);
 
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const audioRecorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
   const pulseScale = useSharedValue(1);
   const micScale = useSharedValue(1);
 

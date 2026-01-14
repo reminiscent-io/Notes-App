@@ -1,9 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import multer from "multer";
-import OpenAI from "openai";
-import * as fs from "fs";
-import * as path from "path";
+import OpenAI, { toFile } from "openai";
 
 // Lazy initialization of OpenAI client
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
@@ -19,7 +17,7 @@ function getOpenAIClient(): OpenAI {
   return openai;
 }
 
-const upload = multer({ dest: "uploads/" });
+const upload = multer({ storage: multer.memoryStorage() });
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/transcribe", upload.single("audio"), async (req, res) => {
@@ -30,16 +28,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No audio file provided" });
       }
 
-      const audioPath = req.file.path;
       const originalName = req.file.originalname || "audio.m4a";
-      const ext = path.extname(originalName) || ".m4a";
-      const newPath = audioPath + ext;
-      fs.renameSync(audioPath, newPath);
-      
-      const audioStream = fs.createReadStream(newPath);
+      const audioFile = await toFile(req.file.buffer, originalName);
 
       const transcription = await client.audio.transcriptions.create({
-        file: audioStream,
+        file: audioFile,
         model: "whisper-1",
       });
 
@@ -119,8 +112,6 @@ Tags:
 
       const parsed = JSON.parse(understanding.choices[0].message.content || "{}");
 
-      try { fs.unlinkSync(newPath); } catch {}
-
       const notes = parsed.notes || [{
         rawText,
         title: parsed.title || rawText.slice(0, 50),
@@ -138,7 +129,6 @@ Tags:
   });
 
   app.post("/api/query", upload.single("audio"), async (req, res) => {
-    let queryAudioPath: string | null = null;
     try {
       const client = getOpenAIClient();
       
@@ -146,20 +136,15 @@ Tags:
         return res.status(400).json({ error: "No audio file provided" });
       }
 
-      const audioPath = req.file.path;
       const originalName = req.file.originalname || "audio.m4a";
-      const ext = path.extname(originalName) || ".m4a";
-      queryAudioPath = audioPath + ext;
-      fs.renameSync(audioPath, queryAudioPath);
+      const audioFile = await toFile(req.file.buffer, originalName);
 
       const notes = JSON.parse(req.body.notes || "[]");
       const customSections = JSON.parse(req.body.customSections || "[]");
       const userTimezone = req.body.timezone || "America/New_York";
 
-      const audioStream = fs.createReadStream(queryAudioPath);
-
       const transcription = await client.audio.transcriptions.create({
-        file: audioStream,
+        file: audioFile,
         model: "whisper-1",
       });
 
@@ -268,8 +253,6 @@ Examples:
         (parsed.matchedNoteIds || []).includes(n.id)
       );
 
-      try { if (queryAudioPath) fs.unlinkSync(queryAudioPath); } catch {}
-
       res.json({
         query,
         response: parsed.response || "I couldn't find anything related to that.",
@@ -281,7 +264,6 @@ Examples:
       });
     } catch (error: any) {
       console.error("Query error:", error);
-      try { if (queryAudioPath) fs.unlinkSync(queryAudioPath); } catch {}
       res.status(500).json({ error: error.message || "Failed to process query" });
     }
   });

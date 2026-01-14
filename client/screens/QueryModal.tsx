@@ -25,7 +25,7 @@ import Animated, {
   withSpring,
   cancelAnimation,
 } from "react-native-reanimated";
-import { useAudioRecorder, AudioModule, RecordingPresets, setAudioModeAsync } from "expo-audio";
+import { useAudioRecorder, AudioModule, RecordingPresets, setAudioModeAsync, type RecordingOptions } from "expo-audio";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -36,6 +36,13 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useSettings } from "@/hooks/useSettings";
 import { queryNotes } from "@/lib/api";
 import { NoteCard } from "@/components/NoteCard";
+
+const VOICE_RECORDING_OPTIONS: RecordingOptions = {
+  ...RecordingPresets.HIGH_QUALITY,
+  numberOfChannels: 1,
+  sampleRate: 16000,
+  bitRate: 32000,
+};
 
 const EXAMPLE_PROMPTS = [
   '"What do I need to do today?"',
@@ -71,7 +78,7 @@ export default function QueryModal() {
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus | null>(null);
   const [exampleIndex, setExampleIndex] = useState(0);
 
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const audioRecorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
   const pulseScale = useSharedValue(1);
   const micScale = useSharedValue(1);
 
