@@ -22,7 +22,6 @@ import Animated, {
   withSpring,
   cancelAnimation,
 } from "react-native-reanimated";
-import { useAudioRecorder, AudioModule, setAudioModeAsync, RecordingPresets, type RecordingOptions } from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -32,20 +31,9 @@ import { useNotes } from "@/hooks/useNotes";
 import { useCustomSections } from "@/hooks/useCustomSections";
 import { useSettings } from "@/hooks/useSettings";
 import { transcribeAndProcess } from "@/lib/api";
+import { useUnifiedAudioRecorder } from "@/hooks/useUnifiedAudioRecorder";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-const VOICE_RECORDING_OPTIONS: RecordingOptions = {
-  ...RecordingPresets.HIGH_QUALITY,
-  numberOfChannels: 1,
-  sampleRate: 16000,
-  bitRate: 32000,
-};
-
-interface PermissionStatus {
-  granted: boolean;
-  canAskAgain: boolean;
-}
 
 export default function RecordingModal() {
   const insets = useSafeAreaInsets();
@@ -59,28 +47,17 @@ export default function RecordingModal() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcribedText, setTranscribedText] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus | null>(null);
 
-  const audioRecorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
+  const {
+    isRecording: hookIsRecording,
+    startRecording: hookStartRecording,
+    stopRecording: hookStopRecording,
+    permissionStatus,
+    requestPermission,
+  } = useUnifiedAudioRecorder();
+
   const pulseScale = useSharedValue(1);
   const micScale = useSharedValue(1);
-
-  useEffect(() => {
-    checkPermissions();
-  }, []);
-
-  const checkPermissions = async () => {
-    try {
-      const status = await AudioModule.getRecordingPermissionsAsync();
-      setPermissionStatus({
-        granted: status.granted,
-        canAskAgain: status.canAskAgain,
-      });
-    } catch (error) {
-      console.error("Failed to check permissions:", error);
-      setPermissionStatus({ granted: false, canAskAgain: true });
-    }
-  };
 
   useEffect(() => {
     if (isRecording) {
@@ -120,15 +97,7 @@ export default function RecordingModal() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setTranscribedText("");
       
-      if (Platform.OS === "ios") {
-        await setAudioModeAsync({
-          allowsRecording: true,
-          playsInSilentMode: true,
-        });
-      }
-
-      await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
+      await hookStartRecording();
       setIsRecording(true);
     } catch (error: any) {
       console.error("Failed to start recording:", error);
@@ -143,44 +112,43 @@ export default function RecordingModal() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
-      // Immediately switch to processing state for instant UI feedback
       setIsRecording(false);
       setIsProcessing(true);
       
-      // Let React render the processing indicator before doing heavy work
       await new Promise(resolve => setTimeout(resolve, 50));
       
-      await audioRecorder.stop();
+      const recordingResult = await hookStopRecording();
+      console.log("Recording stopped, result:", recordingResult);
 
-      const cacheUri = audioRecorder.uri;
-      console.log("Recording stopped, URI:", cacheUri);
-
-      if (!cacheUri) {
+      if (!recordingResult) {
         setErrorMessage("Recording failed. Please try again.");
         setIsProcessing(false);
         return;
       }
 
-      // Try to copy to Documents immediately (cache files are very temporary)
-      try {
-        const recordingsDir = FileSystem.documentDirectory + "recordings/";
-        await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
-        persistedUri = recordingsDir + `recording_${Date.now()}.m4a`;
-        await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
-        console.log("Recording copied to:", persistedUri);
-      } catch (copyError) {
-        console.log("Copy failed:", copyError);
-        persistedUri = cacheUri;
+      let audioInput: { uri: string; blob?: Blob };
+
+      if (Platform.OS === "web") {
+        audioInput = recordingResult;
+      } else {
+        try {
+          const recordingsDir = FileSystem.documentDirectory + "recordings/";
+          await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
+          persistedUri = recordingsDir + `recording_${Date.now()}.m4a`;
+          await FileSystem.copyAsync({ from: recordingResult.uri, to: persistedUri });
+          console.log("Recording copied to:", persistedUri);
+          audioInput = { uri: persistedUri };
+        } catch (copyError) {
+          console.log("Copy failed:", copyError);
+          audioInput = { uri: recordingResult.uri };
+        }
       }
 
-      // Upload and process immediately
-      const result = await transcribeAndProcess(persistedUri, sections, settings.timezone);
+      const result = await transcribeAndProcess(audioInput, sections, settings.timezone);
       
-      // Show combined transcription
       const combinedText = result.notes.map(n => n.rawText).join(" | ");
       setTranscribedText(combinedText);
 
-      // Create all parsed notes
       for (const note of result.notes) {
         await addNote({
           rawText: note.rawText,
@@ -206,7 +174,6 @@ export default function RecordingModal() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setIsProcessing(false);
     } finally {
-      // Clean up persisted file if we created one
       if (persistedUri && persistedUri.includes("/recordings/")) {
         try {
           await FileSystem.deleteAsync(persistedUri, { idempotent: true });
@@ -226,7 +193,7 @@ export default function RecordingModal() {
   const handleClose = async () => {
     if (isRecording) {
       try {
-        await audioRecorder.stop();
+        await hookStopRecording();
       } catch {}
     }
     navigation.goBack();
@@ -234,11 +201,7 @@ export default function RecordingModal() {
 
   const handleRequestPermission = async () => {
     try {
-      const status = await AudioModule.requestRecordingPermissionsAsync();
-      setPermissionStatus({
-        granted: status.granted,
-        canAskAgain: status.canAskAgain,
-      });
+      await requestPermission();
     } catch (error) {
       console.error("Failed to request permission:", error);
     }

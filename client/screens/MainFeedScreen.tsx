@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useLayoutEffect, useEffect } from "react";
+import React, { useState, useCallback, useLayoutEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -16,7 +16,6 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
 import Animated, { FadeInUp } from "react-native-reanimated";
-import { useAudioRecorder, AudioModule, setAudioModeAsync, RecordingPresets } from "expo-audio";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -29,6 +28,7 @@ import { AnimatedOrb } from "@/components/AnimatedOrb";
 import { useNotes, Note } from "@/hooks/useNotes";
 import { useCustomSections } from "@/hooks/useCustomSections";
 import { useSettings } from "@/hooks/useSettings";
+import { useUnifiedAudioRecorder } from "@/hooks/useUnifiedAudioRecorder";
 import { transcribeAndProcess } from "@/lib/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -42,15 +42,15 @@ export default function MainFeedScreen() {
   const { sections } = useCustomSections();
   const { settings } = useSettings();
   const [refreshing, setRefreshing] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-
-  useEffect(() => {
-    checkPermissions();
-  }, []);
+  const {
+    isRecording,
+    startRecording: hookStartRecording,
+    stopRecording: hookStopRecording,
+    permissionStatus,
+    requestPermission,
+  } = useUnifiedAudioRecorder();
 
   // Force re-render when screen regains focus (after editing a note)
   const [focusKey, setFocusKey] = useState(0);
@@ -59,25 +59,6 @@ export default function MainFeedScreen() {
       setFocusKey((k) => k + 1);
     }, [])
   );
-
-  const checkPermissions = async () => {
-    try {
-      const status = await AudioModule.getRecordingPermissionsAsync();
-      setHasPermission(status.granted);
-    } catch {
-      setHasPermission(false);
-    }
-  };
-
-  const requestPermission = async () => {
-    try {
-      const status = await AudioModule.requestRecordingPermissionsAsync();
-      setHasPermission(status.granted);
-      return status.granted;
-    } catch {
-      return false;
-    }
-  };
 
   const activeNotes = notes.filter((n) => !n.archivedAt);
   const todayNotes = activeNotes.filter((n) => n.category === "today");
@@ -96,7 +77,7 @@ export default function MainFeedScreen() {
 
   const startRecording = async () => {
     try {
-      if (hasPermission !== true) {
+      if (!permissionStatus?.granted) {
         const granted = await requestPermission();
         if (!granted) {
           Alert.alert("Permission Required", "Microphone access is needed to record voice notes.");
@@ -105,17 +86,7 @@ export default function MainFeedScreen() {
       }
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-      if (Platform.OS === "ios") {
-        await setAudioModeAsync({
-          allowsRecording: true,
-          playsInSilentMode: true,
-        });
-      }
-
-      await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
-      setIsRecording(true);
+      await hookStartRecording();
     } catch (error) {
       console.error("Failed to start recording:", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -127,35 +98,37 @@ export default function MainFeedScreen() {
     
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setIsRecording(false);
       setIsProcessing(true);
-      await audioRecorder.stop();
 
-      const cacheUri = audioRecorder.uri;
-      console.log("Recording stopped, URI:", cacheUri);
+      const recordingResult = await hookStopRecording();
+      console.log("Recording stopped, result:", recordingResult);
       
-      if (!cacheUri) {
+      if (!recordingResult) {
         Alert.alert("Error", "Recording failed. Please try again.");
         setIsProcessing(false);
         return;
       }
 
-      // Try to copy to Documents immediately (cache files are very temporary)
-      try {
-        const recordingsDir = FileSystem.documentDirectory + "recordings/";
-        await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
-        persistedUri = recordingsDir + `recording_${Date.now()}.m4a`;
-        await FileSystem.copyAsync({ from: cacheUri, to: persistedUri });
-        console.log("Recording copied to:", persistedUri);
-      } catch (copyError) {
-        console.log("Copy failed:", copyError);
-        persistedUri = cacheUri;
+      let audioInput: { uri: string; blob?: Blob };
+
+      if (Platform.OS === "web") {
+        audioInput = recordingResult;
+      } else {
+        try {
+          const recordingsDir = FileSystem.documentDirectory + "recordings/";
+          await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
+          persistedUri = recordingsDir + `recording_${Date.now()}.m4a`;
+          await FileSystem.copyAsync({ from: recordingResult.uri, to: persistedUri });
+          console.log("Recording copied to:", persistedUri);
+          audioInput = { uri: persistedUri };
+        } catch (copyError) {
+          console.log("Copy failed:", copyError);
+          audioInput = { uri: recordingResult.uri };
+        }
       }
 
-      // Upload and process immediately
-      const result = await transcribeAndProcess(persistedUri, sections, settings.timezone);
+      const result = await transcribeAndProcess(audioInput, sections, settings.timezone);
 
-      // Create all parsed notes
       for (const note of result.notes) {
         await addNote({
           rawText: note.rawText,
@@ -175,7 +148,6 @@ export default function MainFeedScreen() {
       Alert.alert("Error", error.message || "Could not process recording. Please try again.");
       setIsProcessing(false);
     } finally {
-      // Clean up persisted file if we created one
       if (persistedUri && persistedUri.includes("/recordings/")) {
         try {
           await FileSystem.deleteAsync(persistedUri, { idempotent: true });

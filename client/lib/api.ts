@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { getApiUrl, apiRequest } from "@/lib/query-client";
 import { Note } from "@/hooks/useNotes";
 import { CustomSection } from "@/hooks/useCustomSections";
@@ -27,22 +28,40 @@ interface QueryResult {
 
 export type { ParsedNote };
 
+interface AudioInput {
+  uri: string;
+  blob?: Blob;
+}
+
 export async function transcribeAndProcess(
-  audioUri: string,
+  audio: string | AudioInput,
   customSections: CustomSection[] = [],
   timezone: string = "America/New_York"
 ): Promise<TranscribeResult> {
   const formData = new FormData();
   
-  const filename = audioUri.includes(".") 
-    ? audioUri.split("/").pop() || "recording.m4a"
-    : "recording.m4a";
+  if (Platform.OS === "web") {
+    const audioInput = audio as AudioInput;
+    if (audioInput.blob) {
+      formData.append("audio", audioInput.blob, "recording.webm");
+    } else {
+      const response = await fetch(audioInput.uri);
+      const blob = await response.blob();
+      formData.append("audio", blob, "recording.webm");
+    }
+  } else {
+    const audioUri = typeof audio === "string" ? audio : audio.uri;
+    const filename = audioUri.includes(".") 
+      ? audioUri.split("/").pop() || "recording.m4a"
+      : "recording.m4a";
+    
+    formData.append("audio", {
+      uri: audioUri,
+      type: "audio/m4a",
+      name: filename.endsWith(".m4a") ? filename : `${filename}.m4a`,
+    } as any);
+  }
   
-  formData.append("audio", {
-    uri: audioUri,
-    type: "audio/m4a",
-    name: filename.endsWith(".m4a") ? filename : `${filename}.m4a`,
-  } as any);
   formData.append("customSections", JSON.stringify(customSections));
   formData.append("timezone", timezone);
 
@@ -62,22 +81,35 @@ export async function transcribeAndProcess(
 }
 
 export async function queryNotes(
-  audioUri: string,
+  audio: string | AudioInput,
   notes: Note[],
   customSections: CustomSection[] = [],
   timezone: string = "America/New_York"
 ): Promise<QueryResult> {
   const formData = new FormData();
   
-  const filename = audioUri.includes(".") 
-    ? audioUri.split("/").pop() || "recording.m4a"
-    : "recording.m4a";
+  if (Platform.OS === "web") {
+    const audioInput = audio as AudioInput;
+    if (audioInput.blob) {
+      formData.append("audio", audioInput.blob, "recording.webm");
+    } else {
+      const response = await fetch(audioInput.uri);
+      const blob = await response.blob();
+      formData.append("audio", blob, "recording.webm");
+    }
+  } else {
+    const audioUri = typeof audio === "string" ? audio : audio.uri;
+    const filename = audioUri.includes(".") 
+      ? audioUri.split("/").pop() || "recording.m4a"
+      : "recording.m4a";
+    
+    formData.append("audio", {
+      uri: audioUri,
+      type: "audio/m4a",
+      name: filename.endsWith(".m4a") ? filename : `${filename}.m4a`,
+    } as any);
+  }
   
-  formData.append("audio", {
-    uri: audioUri,
-    type: "audio/m4a",
-    name: filename.endsWith(".m4a") ? filename : `${filename}.m4a`,
-  } as any);
   formData.append("notes", JSON.stringify(notes));
   formData.append("customSections", JSON.stringify(customSections));
   formData.append("timezone", timezone);

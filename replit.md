@@ -2,7 +2,11 @@
 
 ## Overview
 
-Voice Notes is a React Native/Expo mobile application designed for frictionless thought capture through voice-first interaction. Users speak thoughts into their phone, which are automatically transcribed using OpenAI Whisper and intelligently categorized using GPT-5. The app follows a brutally minimal design philosophy where the microphone button is the hero element.
+Voice Notes is a cross-platform web and mobile application designed for frictionless thought capture through voice-first interaction. Users speak thoughts which are automatically transcribed using OpenAI Whisper and intelligently categorized using GPT-4o-mini. The app follows a brutally minimal design philosophy where the microphone button is the hero element.
+
+**Platform Support:**
+- Web: Uses MediaRecorder API for audio capture (works in Chrome, Firefox, Safari)
+- Mobile: Uses expo-audio for native iOS/Android recording via Expo Go
 
 The application uses a monorepo structure with three main directories:
 - `client/` - Expo/React Native frontend
@@ -33,7 +37,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript
-- **AI Integration**: OpenAI API (Whisper for transcription, GPT-5 for understanding)
+- **AI Integration**: OpenAI API (Whisper for transcription, GPT-4o-mini for understanding)
 - **File Upload**: Multer for handling audio file uploads
 - **Storage Pattern**: Interface-based storage (`IStorage`) with in-memory implementation currently
 
@@ -69,7 +73,7 @@ Preferred communication style: Simple, everyday language.
 ### Data Flow
 1. User records voice → Audio file sent to `/api/transcribe` with custom sections
 2. OpenAI Whisper transcribes audio → text
-3. GPT-5 extracts structured data (title, category, due date, entities, tags)
+3. GPT-4o-mini extracts structured data (title, category, due date, entities, tags)
 4. Client stores note in AsyncStorage with auto-assigned tags
 5. UI updates with categorized note card, appears in matching custom sections
 
@@ -89,8 +93,13 @@ Preferred communication style: Simple, everyday language.
   - Environment variable: `DATABASE_URL`
   - Migrations directory: `./migrations`
 
+### Audio Recording
+- **Web**: MediaRecorder API with automatic MIME type detection (webm, mp4, ogg fallback)
+- **Native**: expo-audio with optimized settings (mono, 16kHz, 32kbps)
+- **Unified Hook**: `useUnifiedAudioRecorder` abstracts platform differences
+
 ### Key NPM Packages
-- `expo-audio` - Audio recording on mobile
+- `expo-audio` - Audio recording on mobile (native only)
 - `expo-notifications` - Push notifications and reminders
 - `openai` - OpenAI API client
 - `drizzle-orm` + `drizzle-zod` - Database ORM and validation
