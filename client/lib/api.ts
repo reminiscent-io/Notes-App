@@ -29,7 +29,8 @@ export type { ParsedNote };
 
 export async function transcribeAndProcess(
   audioUri: string,
-  customSections: CustomSection[] = []
+  customSections: CustomSection[] = [],
+  timezone: string = "America/New_York"
 ): Promise<TranscribeResult> {
   const formData = new FormData();
   
@@ -43,6 +44,7 @@ export async function transcribeAndProcess(
     name: filename.endsWith(".m4a") ? filename : `${filename}.m4a`,
   } as any);
   formData.append("customSections", JSON.stringify(customSections));
+  formData.append("timezone", timezone);
 
   const url = new URL("/api/transcribe", getApiUrl());
   

@@ -39,10 +39,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rawText = transcription.text;
 
       const customSections = JSON.parse(req.body.customSections || "[]");
+      const userTimezone = req.body.timezone || "America/New_York";
       
       const sectionsContext = customSections.length > 0
         ? `\n\nCustom sections (auto-tag if content matches):\n${customSections.map((s: any) => `- "${s.name}": keywords = [${s.keywords.join(", ")}]`).join("\n")}`
         : "";
+
+      const currentTime = new Date().toLocaleString("en-US", {
+        timeZone: userTimezone,
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
 
       const understanding = await client.chat.completions.create({
         model: "gpt-4o-mini",
@@ -50,6 +62,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           {
             role: "system",
             content: `You are a voice notes assistant. Analyze the transcribed text and extract one or more distinct notes.
+
+CURRENT DATE/TIME: ${currentTime} (${userTimezone})
+Use this as context when interpreting relative times like "today", "tomorrow", "at 3pm", etc.
+All times mentioned by the user are in ${userTimezone} timezone - convert them to ISO format with the correct offset.
 
 IMPORTANT: If the user mentions multiple unrelated items, tasks, or ideas, create SEPARATE notes for each. For example:
 - "Remind me to call mom tomorrow, also buy milk" = 2 notes (call reminder + shopping)

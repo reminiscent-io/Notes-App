@@ -28,6 +28,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { AnimatedOrb } from "@/components/AnimatedOrb";
 import { useNotes, Note } from "@/hooks/useNotes";
 import { useCustomSections } from "@/hooks/useCustomSections";
+import { useSettings } from "@/hooks/useSettings";
 import { transcribeAndProcess } from "@/lib/api";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -39,6 +40,7 @@ export default function MainFeedScreen() {
   const { theme } = useTheme();
   const { notes, loading, refreshNotes, toggleComplete, deleteNote, addNote } = useNotes();
   const { sections } = useCustomSections();
+  const { settings } = useSettings();
   const [refreshing, setRefreshing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -151,7 +153,7 @@ export default function MainFeedScreen() {
       }
 
       // Upload and process immediately
-      const result = await transcribeAndProcess(persistedUri, sections);
+      const result = await transcribeAndProcess(persistedUri, sections, settings.timezone);
 
       // Create all parsed notes
       for (const note of result.notes) {
