@@ -4,7 +4,7 @@ import multer from "multer";
 import OpenAI, { toFile } from "openai";
 
 // Lazy initialization of OpenAI client
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+// Using gpt-4o-mini for faster, cheaper responses while maintaining good quality
 let openai: OpenAI | null = null;
 
 function getOpenAIClient(): OpenAI {
@@ -45,7 +45,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : "";
 
       const understanding = await client.chat.completions.create({
-        model: "gpt-5",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -190,7 +190,7 @@ Tags:
         : "\n\nNo custom sections yet.";
 
       const response = await client.chat.completions.create({
-        model: "gpt-5",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
