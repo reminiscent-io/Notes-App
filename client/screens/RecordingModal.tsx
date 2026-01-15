@@ -32,6 +32,7 @@ import { useCustomSections } from "@/hooks/useCustomSections";
 import { useSettings } from "@/hooks/useSettings";
 import { transcribeAndProcess } from "@/lib/api";
 import { useUnifiedAudioRecorder } from "@/hooks/useUnifiedAudioRecorder";
+import { useVoiceStream } from "@/replit_integrations/audio";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -47,6 +48,12 @@ export default function RecordingModal() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcribedText, setTranscribedText] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+
+  const voiceStream = useVoiceStream({
+    onUserTranscript: (text) => setTranscribedText(text),
+    onTranscript: (delta, full) => setTranscribedText(full),
+    onError: (err) => setErrorMessage(err.message),
+  });
 
   const {
     isRecording: hookIsRecording,
@@ -124,6 +131,18 @@ export default function RecordingModal() {
         setErrorMessage("Recording failed. Please try again.");
         setIsProcessing(false);
         return;
+      }
+
+      // If we're on web and have a blob, we can use the streaming API for feedback
+      if (Platform.OS === "web" && recordingResult.blob) {
+        try {
+          // This provides real-time transcript updates while processing the final notes
+          // Note: We use the existing transcribeAndProcess for structured note extraction
+          // but we could migrate to the streaming endpoint fully if desired.
+          voiceStream.streamVoiceResponse("/api/transcribe", recordingResult.blob).catch(() => {});
+        } catch (e) {
+          console.error("Streaming feedback failed:", e);
+        }
       }
 
       let audioInput: { uri: string; blob?: Blob };
