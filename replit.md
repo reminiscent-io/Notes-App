@@ -85,8 +85,8 @@ Preferred communication style: Simple, everyday language.
 ## External Dependencies
 
 ### Third-Party Services
-- **OpenAI API** (required): Whisper for speech-to-text, GPT-5 for natural language understanding
-  - Environment variable: `OPENAI_API_KEY`
+- **OpenAI API** (required): Whisper for speech-to-text, GPT-4o-mini for natural language understanding
+  - Secret: `OPENAI_API_KEY` (stored in Replit secrets)
 
 ### Database
 - **PostgreSQL**: Configured via Drizzle ORM

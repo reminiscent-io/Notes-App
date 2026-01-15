@@ -8,10 +8,9 @@ let openai: OpenAI | null = null;
 
 function getOpenAIClient(): OpenAI {
   if (!openai) {
-    // Replit AI Integrations handles keys automatically if configured
-    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      throw new Error("OpenAI API key is not set.");
+      throw new Error("OPENAI_API_KEY is not set. Please add your OpenAI API key to secrets.");
     }
     openai = new OpenAI({ apiKey });
   }
